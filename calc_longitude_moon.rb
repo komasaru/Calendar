@@ -21,7 +21,7 @@ K = PI / 180.0
 #============
 # 計算クラス
 #============
-class CalcLongitudeSun
+class CalcLongitudeMoon
   def initialize(dt)
     @year  = dt[ 0, 4].to_i
     @month = dt[ 4, 2].to_i
@@ -318,7 +318,7 @@ begin
   dt = obj_arg.get_dt
 
   # 計算クラスインスタンス化
-  obj_calc = CalcLongitudeSun.new(dt)
+  obj_calc = CalcLongitudeMoon.new(dt)
 
   # グレゴリオ暦からユリウス通日を計算
   obj_calc.gc_to_jd
