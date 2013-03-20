@@ -4,6 +4,7 @@
 #
 # date          name            version
 # 2013.02.19    mk-mode         1.00 新規作成
+# 2013.03.20    mk-mode         1.01 補正値計算処理を追加
 #
 # Copyright(C) 2013 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -17,12 +18,15 @@ require 'date'
 PI = 3.141592653589793238462
 # （角度の）度からラジアンに変換する係数の定義
 K = PI / 180.0
+# UTC ( +9 )
+UTC = 9
 
 #============
 # 計算クラス
 #============
 class CalcLongitudeMoon
   def initialize(dt)
+    # 年月日時分秒
     @year  = dt[ 0, 4].to_i
     @month = dt[ 4, 2].to_i
     @day   = dt[ 6, 2].to_i
@@ -69,6 +73,35 @@ class CalcLongitudeMoon
       @jd += t
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".gc_to_jd] " + e.to_s
+      STDERR.puts str_msg
+      exit 1
+    end
+  end
+
+  #=========================================================================
+  # 2000年1月1日力学時正午からの経過日数(日)
+  #=========================================================================
+  def calc_day_progress
+    begin
+      # 年月日取得
+      year  = @year - 2000
+      month = @month
+      day   = @day
+
+      # 1月,2月は前年の13月,14月とする
+      if month < 3
+        year  -= 1
+        month += 12
+      end
+
+      # 経過日数(J2000.0)
+      day_progress  = 365 * year + 30 * month + day - 33.5 - UTC / 24.0
+      day_progress += (3 * (month + 1) / 5.0).truncate
+      day_progress += (year / 4.0).truncate
+
+      return day_progress
+    rescue => e
+      str_msg = "[EXCEPTION][" + self.class.name + ".calc_day_progress] " + e.to_s
       STDERR.puts str_msg
       exit 1
     end
@@ -215,9 +248,107 @@ class CalcLongitudeMoon
       ang = normalize_angle(ang + 218.3162)
 
       # 月黄経
-      @th  = normalize_angle(th + ang)
+      @th = normalize_angle(th + ang)
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_moon] " + e.to_s
+      STDERR.puts str_msg
+      exit 1
+    end
+  end
+
+  #=========================================================================
+  # 月の黄経 λmoon 計算 ( 補正 )
+  #=========================================================================
+  def calc_longitude_moon_new
+    begin
+      # 時分秒から日計算
+      t  = @hour * 60 * 60
+      t += @min * 60
+      t += @sec
+      t /= 86400.0
+
+      # 地球自転遅れ補正値(日)計算
+      rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
+
+      # 2000年1月1日力学時正午からの経過日数(日)計算
+      day_progress = calc_day_progress
+
+      # 経過ユリウス年(日)計算
+      # ( 2000.0(2000年1月1日力学時正午)からの経過年数 (年) )
+      jy = (day_progress + t + rotate_rev) / 365.25
+
+      # 月黄経計算
+      am  = 0.0006 * Math.sin(K * normalize_angle( 54.0 + 19.3  * jy))
+      am += 0.0006 * Math.sin(K * normalize_angle( 71.0 +  0.2  * jy))
+      am += 0.0020 * Math.sin(K * normalize_angle( 55.0 + 19.34 * jy))
+      am += 0.0040 * Math.sin(K * normalize_angle(119.5 +  1.33 * jy))
+
+      rm_moon  = 0.0003 * Math.sin(K * normalize_angle(280.0   + 23221.3    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(161.0   +    40.7    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(311.0   +  5492.0    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(147.0   + 18089.3    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle( 66.0   +  3494.7    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle( 83.0   +  3814.0    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle( 20.0   +   720.0    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle( 71.0   +  9584.7    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle(278.0   +   120.1    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle(313.0   +   398.7    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(332.0   +  5091.3    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(114.0   + 17450.7    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(181.0   + 19088.0    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(247.0   + 22582.7    * jy))
+      rm_moon += 0.0006 * Math.sin(K * normalize_angle(128.0   +  1118.7    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(216.0   +   278.6    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(275.0   +  4853.3    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(140.0   +  4052.0    * jy))
+      rm_moon += 0.0008 * Math.sin(K * normalize_angle(204.0   +  7906.7    * jy))
+      rm_moon += 0.0008 * Math.sin(K * normalize_angle(188.0   + 14037.3    * jy))
+      rm_moon += 0.0009 * Math.sin(K * normalize_angle(218.0   +  8586.0    * jy))
+      rm_moon += 0.0011 * Math.sin(K * normalize_angle(276.5   + 19208.02   * jy))
+      rm_moon += 0.0012 * Math.sin(K * normalize_angle(339.0   + 12678.71   * jy))
+      rm_moon += 0.0016 * Math.sin(K * normalize_angle(242.2   + 18569.38   * jy))
+      rm_moon += 0.0018 * Math.sin(K * normalize_angle(  4.1   +  4013.29   * jy))
+      rm_moon += 0.0020 * Math.sin(K * normalize_angle( 55.0   +    19.34   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle(105.6   +  3413.37   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle(175.1   +   719.98   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle( 87.5   +  9903.97   * jy))
+      rm_moon += 0.0022 * Math.sin(K * normalize_angle(240.6   +  8185.36   * jy))
+      rm_moon += 0.0024 * Math.sin(K * normalize_angle(252.8   +  9224.66   * jy))
+      rm_moon += 0.0024 * Math.sin(K * normalize_angle(211.9   +   988.63   * jy))
+      rm_moon += 0.0026 * Math.sin(K * normalize_angle(107.2   + 13797.39   * jy))
+      rm_moon += 0.0027 * Math.sin(K * normalize_angle(272.5   +  9183.99   * jy))
+      rm_moon += 0.0037 * Math.sin(K * normalize_angle(349.1   +  5410.62   * jy))
+      rm_moon += 0.0039 * Math.sin(K * normalize_angle(111.3   + 17810.68   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle(119.5   +     1.33   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle(145.6   + 18449.32   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle( 13.2   + 13317.34   * jy))
+      rm_moon += 0.0048 * Math.sin(K * normalize_angle(235.0   +    19.34   * jy))
+      rm_moon += 0.0050 * Math.sin(K * normalize_angle(295.4   +  4812.66   * jy))
+      rm_moon += 0.0052 * Math.sin(K * normalize_angle(197.2   +   319.32   * jy))
+      rm_moon += 0.0068 * Math.sin(K * normalize_angle( 53.2   +  9265.33   * jy))
+      rm_moon += 0.0079 * Math.sin(K * normalize_angle(278.2   +  4493.34   * jy))
+      rm_moon += 0.0085 * Math.sin(K * normalize_angle(201.5   +  8266.71   * jy))
+      rm_moon += 0.0100 * Math.sin(K * normalize_angle( 44.89  + 14315.966  * jy))
+      rm_moon += 0.0107 * Math.sin(K * normalize_angle(336.44  + 13038.696  * jy))
+      rm_moon += 0.0110 * Math.sin(K * normalize_angle(231.59  +  4892.052  * jy))
+      rm_moon += 0.0125 * Math.sin(K * normalize_angle(141.51  + 14436.029  * jy))
+      rm_moon += 0.0153 * Math.sin(K * normalize_angle(130.84  +   758.698  * jy))
+      rm_moon += 0.0305 * Math.sin(K * normalize_angle(312.49  +  5131.979  * jy))
+      rm_moon += 0.0348 * Math.sin(K * normalize_angle(117.84  +  4452.671  * jy))
+      rm_moon += 0.0410 * Math.sin(K * normalize_angle(137.43  +  4411.998  * jy))
+      rm_moon += 0.0459 * Math.sin(K * normalize_angle(238.18  +  8545.352  * jy))
+      rm_moon += 0.0533 * Math.sin(K * normalize_angle( 10.66  + 13677.331  * jy))
+      rm_moon += 0.0572 * Math.sin(K * normalize_angle(103.21  +  3773.363  * jy))
+      rm_moon += 0.0588 * Math.sin(K * normalize_angle(214.22  +   638.635  * jy))
+      rm_moon += 0.1143 * Math.sin(K * normalize_angle(  6.546 +  9664.0404 * jy))
+      rm_moon += 0.1856 * Math.sin(K * normalize_angle(177.525 +   359.9905 * jy))
+      rm_moon += 0.2136 * Math.sin(K * normalize_angle(269.926 +  9543.9773 * jy))
+      rm_moon += 0.6583 * Math.sin(K * normalize_angle(235.700 +  8905.3422 * jy))
+      rm_moon += 1.2740 * Math.sin(K * normalize_angle(100.738 +  4133.3536 * jy))
+      rm_moon += 6.2887 * Math.sin(K * normalize_angle(134.961 +  4771.9886 * jy + am ) )
+      @th_new = rm_moon + normalize_angle(218.3161 + 4812.67881 * jy)
+    rescue => e
+      str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_moon_new] " + e.to_s
       STDERR.puts str_msg
       exit 1
     end
@@ -250,6 +381,11 @@ class CalcLongitudeMoon
   # 月黄経取得
   def get_longitude_moon
     return @th
+  end
+
+  # 月黄経(補正)取得
+  def get_longitude_moon_new
+    return @th_new
   end
 end
 
@@ -326,10 +462,13 @@ begin
   # ユリウス通日から黄経(月)を計算
   obj_calc.calc_longitude_moon
 
+  # ユリウス通日から黄経(月)(補正)を計算
+  obj_calc.calc_longitude_moon_new
+
   # 計算結果出力
-  str  = "#{dt[0,4]}-#{dt[4,2]}-#{dt[6,2]} #{dt[8,2]}:#{dt[10,2]}:#{dt[12,2]} "
-  str << "の月黄経 = #{obj_calc.get_longitude_moon}°"
-  puts str
+  puts "[#{dt[0,4]}-#{dt[4,2]}-#{dt[6,2]} #{dt[8,2]}:#{dt[10,2]}:#{dt[12,2]}]"
+  puts "\t[月 黄 経] #{obj_calc.get_longitude_moon}°"
+  puts "\t[補 正 後] #{obj_calc.get_longitude_moon_new}°"
 rescue => e
   str_msg = "[EXCEPTION] " + e.to_s
   STDERR.puts str_msg

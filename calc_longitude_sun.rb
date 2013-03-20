@@ -4,6 +4,7 @@
 #
 # date          name            version
 # 2013.02.19    mk-mode         1.00 新規作成
+# 2013.03.20    mk-mode         1.01 補正値計算処理を追加
 #
 # Copyright(C) 2013 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -17,12 +18,15 @@ require 'date'
 PI = 3.141592653589793238462
 # （角度の）度からラジアンに変換する係数の定義
 K = PI / 180.0
+# UTC ( +9 )
+UTC = 9
 
 #============
 # 計算クラス
 #============
 class CalcLongitudeSun
   def initialize(dt)
+    # 年月日時分秒
     @year  = dt[ 0, 4].to_i
     @month = dt[ 4, 2].to_i
     @day   = dt[ 6, 2].to_i
@@ -69,6 +73,35 @@ class CalcLongitudeSun
       @jd += t
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".gc_to_jd] " + e.to_s
+      STDERR.puts str_msg
+      exit 1
+    end
+  end
+
+  #=========================================================================
+  # 2000年1月1日力学時正午からの経過日数(日)
+  #=========================================================================
+  def calc_day_progress
+    begin
+      # 年月日取得
+      year  = @year - 2000
+      month = @month
+      day   = @day
+
+      # 1月,2月は前年の13月,14月とする
+      if month < 3
+        year  -= 1
+        month += 12
+      end
+
+      # 経過日数(J2000.0)
+      day_progress  = 365 * year + 30 * month + day - 33.5 - UTC / 24.0
+      day_progress += (3 * (month + 1) / 5.0).truncate
+      day_progress += (year / 4.0).truncate
+
+      return day_progress
+    rescue => e
+      str_msg = "[EXCEPTION][" + self.class.name + ".calc_day_progress] " + e.to_s
       STDERR.puts str_msg
       exit 1
     end
@@ -133,6 +166,56 @@ class CalcLongitudeSun
   end
 
   #=========================================================================
+  # 太陽の黄経 λsun 計算 ( 補正 )
+  #=========================================================================
+  def calc_longitude_sun_new
+    begin
+      # 時分秒から日計算
+      t  = @hour * 60 * 60
+      t += @min * 60
+      t += @sec
+      t /= 86400.0
+
+      # 地球自転遅れ補正値(日)計算
+      rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
+
+      # 2000年1月1日力学時正午からの経過日数(日)計算
+      day_progress = calc_day_progress
+
+      # 経過ユリウス年(日)計算
+      # ( 2000.0(2000年1月1日力学時正午)からの経過年数 (年) )
+      jy = (day_progress + t + rotate_rev) / 365.25
+
+      # 太陽黄経計算
+      th  = 0.0003 * Math.sin(K * normalize_angle(329.7  +   44.43  * jy))
+      th += 0.0003 * Math.sin(K * normalize_angle(352.5  + 1079.97  * jy))
+      th += 0.0004 * Math.sin(K * normalize_angle( 21.1  +  720.02  * jy))
+      th += 0.0004 * Math.sin(K * normalize_angle(157.3  +  299.30  * jy))
+      th += 0.0004 * Math.sin(K * normalize_angle(234.9  +  315.56  * jy))
+      th += 0.0005 * Math.sin(K * normalize_angle(291.2  +   22.81  * jy))
+      th += 0.0005 * Math.sin(K * normalize_angle(207.4  +    1.50  * jy))
+      th += 0.0006 * Math.sin(K * normalize_angle( 29.8  +  337.18  * jy))
+      th += 0.0007 * Math.sin(K * normalize_angle(206.8  +   30.35  * jy))
+      th += 0.0007 * Math.sin(K * normalize_angle(153.3  +   90.38  * jy))
+      th += 0.0008 * Math.sin(K * normalize_angle(132.5  +  659.29  * jy))
+      th += 0.0013 * Math.sin(K * normalize_angle( 81.4  +  225.18  * jy))
+      th += 0.0015 * Math.sin(K * normalize_angle(343.2  +  450.37  * jy))
+      th += 0.0018 * Math.sin(K * normalize_angle(251.3  +    0.20  * jy))
+      th += 0.0018 * Math.sin(K * normalize_angle(297.8  + 4452.67  * jy))
+      th += 0.0020 * Math.sin(K * normalize_angle(247.1  +  329.64  * jy))
+      th += 0.0048 * Math.sin(K * normalize_angle(234.95 +   19.341 * jy))
+      th += 0.0200 * Math.sin(K * normalize_angle(355.05 +  719.981 * jy))
+      th += (1.9146 - 0.00005 * jy) * Math.sin(K * normalize_angle(357.538 + 359.991 * jy))
+      th += normalize_angle(280.4603 + 360.00769 * jy)
+      @th_new = normalize_angle(th)
+    rescue => e
+      str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_sun_new] " + e.to_s
+      STDERR.puts str_msg
+      exit 1
+    end
+  end
+
+  #=========================================================================
   # 角度の正規化
   # ( すなわち引数の範囲を ０≦θ＜３６０ にする )
   #=========================================================================
@@ -159,6 +242,11 @@ class CalcLongitudeSun
   # 太陽黄経取得
   def get_longitude_sun
     return @th
+  end
+
+  # 太陽黄経(補正)取得
+  def get_longitude_sun_new
+    return @th_new
   end
 end
 
@@ -235,10 +323,13 @@ begin
   # ユリウス通日から黄経(太陽)を計算
   obj_calc.calc_longitude_sun
 
+  # ユリウス通日から黄経(太陽)(補正)を計算
+  obj_calc.calc_longitude_sun_new
+
   # 計算結果出力
-  str  = "#{dt[0,4]}-#{dt[4,2]}-#{dt[6,2]} #{dt[8,2]}:#{dt[10,2]}:#{dt[12,2]} "
-  str << "の太陽黄経 = #{obj_calc.get_longitude_sun}°"
-  puts str
+  puts "[#{dt[0,4]}-#{dt[4,2]}-#{dt[6,2]} #{dt[8,2]}:#{dt[10,2]}:#{dt[12,2]}]"
+  puts "\t[太陽黄経] #{obj_calc.get_longitude_sun}°"
+  puts "\t[補 正 後] #{obj_calc.get_longitude_sun_new}°"
 rescue => e
   str_msg = "[EXCEPTION] " + e.to_s
   STDERR.puts str_msg
