@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+#! /usr/local/bin/ruby
+# coding: utf-8
 #=太陽黄経計算スクリプト
 # （グレゴリオ暦から太陽黄経を計算する）
 #

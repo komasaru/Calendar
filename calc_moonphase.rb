@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+#! /usr/local/bin/ruby
+# coding: utf-8
 #=月相計算スクリプト
 # （グレゴリオ暦から月相を計算する）
 #
@@ -80,13 +81,15 @@ class CalcMoonphase
   def calc_moonphase
     begin
       # 黄経（太陽・月）計算
-      long_sun  = calc_longitude_sun
       long_moon = calc_longitude_moon
-      puts "黄経・太陽 = #{long_sun}°"
+      long_sun  = calc_longitude_sun
+      long_dev  = normalize_angle(long_moon - long_sun)
       puts "黄経・月   = #{long_moon}°"
+      puts "黄経・太陽 = #{long_sun}°"
+      puts "黄経差     = #{long_dev}°"
 
       # 月相計算
-      moonphase = ((normalize_angle(long_moon - long_sun) / 360.0) * 28).round
+      moonphase = ((long_dev / 360.0) * 28).round
       moonphase = 0 if moonphase == 28
 
       return moonphase

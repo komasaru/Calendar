@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+#! /usr/local/bin/ruby
+# coding: utf-8
 #=月齢計算スクリプト
 # （グレゴリオ暦から月齢を計算する）
 #
