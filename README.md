@@ -8,7 +8,7 @@ CalcLongitudeSun
 
 ### 使用方法
 
-`ruby calc_longitude_sun.rb [YYYYMMDD[HHMMSS]]`
+`./calc_longitude_sun.rb [YYYYMMDD[HHMMSS]]`
 
 ### 引数について
 
@@ -27,7 +27,7 @@ CalcLongitudeMoon
 
 ### 使用方法
 
-`ruby calc_longitude_moon.rb [YYYYMMDD[HHMMSS]]`
+`./calc_longitude_moon.rb [YYYYMMDD[HHMMSS]]`
 
 ### 引数について
 
@@ -46,7 +46,7 @@ CalcMoonage
 
 ### 使用方法
 
-`ruby calc_moonage.rb [YYYYMMDD[HHMMSS]]`
+`./calc_moonage.rb [YYYYMMDD[HHMMSS]]`
 
 ### 引数について
 
@@ -64,7 +64,7 @@ CalcMoonphase
 
 ### 使用方法
 
-`ruby calc_moonphase.rb [YYYYMMDD[HHMMSS]]`
+`./calc_moonphase.rb [YYYYMMDD[HHMMSS]]`
 
 ### 引数について
 
@@ -96,6 +96,23 @@ Calendar
 ### 使用方法
 
 `./calendar.rb [第1引数] [第2引数]`
+
+### 引数について
+
+スクリプト内のコメント参照。
+
+---
+
+SunMoon
+=======
+
+### 概要
+
+日の出・日の入の時刻・方位、日の南中の時刻・高度、月の出・月の入の時刻・方位、月の南中の時刻・高度を計算する。
+
+### 使用方法
+
+`./sun_moon.rb [第1引数] [第2引数] [第3引数] [第4引数] [第5引数]`
 
 ### 引数について
 
