@@ -6,8 +6,10 @@
 # date          name            version
 # 2013.02.19    mk-mode         1.00 新規作成
 # 2013.03.20    mk-mode         1.01 補正値計算処理を追加
+# 2016.02.18    mk-mode         1.02 57 固定だった ΔT を計算により導出するよう変更
+#                                    Ref: [NASA - Polynomial Expressions for Delta T](http://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
 #
-# Copyright(C) 2013 mk-mode.com All Rights Reserved.
+# Copyright(C) 2013-2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
 # 引数 : 計算日時(グレゴリオ暦)
 #          書式：YYYYMMDD or YYYYMMDDHHMMSS
@@ -269,7 +271,8 @@ class CalcLongitudeMoon
       t /= 86400.0
 
       # 地球自転遅れ補正値(日)計算
-      rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
+      #rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
+      rotate_rev = (calc_dt + 0.8 * (@year - 1990)) / 86400.0
 
       # 2000年1月1日力学時正午からの経過日数(日)計算
       day_progress = calc_day_progress
@@ -377,6 +380,116 @@ class CalcLongitudeMoon
       STDERR.puts str_msg
       exit 1
     end
+  end
+
+  #=========================================================================
+  # ΔT の計算
+  #=========================================================================
+  def calc_dt
+    case
+    when @year < -500
+      t = (@year-1820) / 100.0
+      dt  = -20
+      dt += 32 * t ** 2
+    when -500 <= @year && @year < 500
+      t = @year / 100.0
+      dt  = 10583.6
+      dt -= 1014.41 * t
+      dt += 33.78311 * t ** 2
+      dt -= 5.952053 * t ** 3
+      dt -= 0.1798452 * t ** 4
+      dt += 0.022174192 * t ** 5
+      dt += 0.0090316521 * t ** 6
+    when 500 <= @year && @year < 1600
+      t = (@year - 1000) / 100.0
+      dt  = 1574.2
+      dt -= 556.01 * t
+      dt += 71.23472 * t ** 2
+      dt += 0.319781 * t ** 3
+      dt -= 0.8503463 * t ** 4
+      dt -= 0.005050998 * t ** 5
+      dt += 0.0083572073 * t ** 6
+    when 1600 <= @year && @year < 1700
+      t = @year - 1600
+      dt  = 120
+      dt -= 0.9808 * t
+      dt -= 0.01532 * t ** 2
+      dt += t ** 3 / 7129.0
+    when 1700 <= @year && @year < 1800
+      t = @year - 1700
+      dt  = 8.83
+      dt += 0.1603 * t
+      dt -= 0.0059285 * t ** 2
+      dt += 0.00013336 * t ** 3
+      dt -= t ** 4 / 1174000.0
+    when 1800 <= @year && @year < 1860
+      t = @year - 1800
+      dt  = 13.72
+      dt -= 0.332447 * t
+      dt += 0.0068612 * t ** 2
+      dt += 0.0041116 * t ** 3
+      dt -= 0.00037436 * t ** 4
+      dt += 0.0000121272 * t ** 5
+      dt -= 0.0000001699 * t ** 6
+      dt += 0.000000000875 * t ** 7
+    when 1860 <= @year && @year < 1900
+      t = @year - 1860
+      dt  = 7.62
+      dt += 0.5737 * t
+      dt -= 0.251754 * t ** 2
+      dt += 0.01680668 * t ** 3
+      dt -= 0.0004473624 * t ** 4
+      dt += t ** 5 / 233174.0
+    when 1900 <= @year && @year < 1920
+      t = @year - 1900
+      dt  = -2.79
+      dt += 1.494119 * t
+      dt -= 0.0598939 * t ** 2
+      dt += 0.0061966 * t ** 3
+      dt -= 0.000197 * t ** 4
+    when 1920 <= @year && @year < 1941
+      t = @year - 1920
+      dt  = 21.20
+      dt += 0.84493 * t
+      dt -= 0.076100 * t ** 2
+      dt += 0.0020936 * t ** 3
+    when 1941 <= @year && @year < 1961
+      t = @year - 1950
+      dt  = 29.07
+      dt += 0.407 * t
+      dt -= t ** 2 / 233.0
+      dt += t ** 3 / 2547.0
+    when 1961 <= @year && @year < 1986
+      t = @year - 1975
+      dt  = 45.45
+      dt += 1.067 * t
+      dt -= t ** 2 / 260.0
+      dt -= t ** 3 / 718.0
+    when 1986 <= @year && @year < 2005
+      t = @year - 2000
+      dt  = 63.86
+      dt += 0.3345 * t
+      dt -= 0.060374 * t ** 2
+      dt += 0.0017275 * t ** 3
+      dt += 0.000651814 * t ** 4
+      dt += 0.00002373599 * t ** 5
+    when 2005 <= @year && @year < 2050
+      t = @year - 2000
+      dt  = 62.92
+      dt += 0.32217 * t
+      dt += 0.005589 * t ** 2
+    when 2050 <= @year && @year <= 2150
+      dt  = -20
+      dt += 32 * ((@year - 1820)/100.0) ** 2
+      dt -= 0.5628 * (2150 - @year)
+    when 2150 < @year
+      t = (@year-1820)/100
+      dt  = -20
+      dt += 32 * t ** 2
+    end
+    return dt
+  rescue => e
+    raise
   end
 
   # 月黄経取得
