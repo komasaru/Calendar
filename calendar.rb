@@ -148,7 +148,6 @@ private
             # 正規チェック ( ８桁の半角数字 )
             if ARGV[1].to_s =~ /^\d{8}$/
               @date = ARGV[1].to_s
-              return ""
             else
               return "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
             end
@@ -160,7 +159,6 @@ private
             return "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
           else
             @date = ARGV[0].to_s
-            return ""
           end
         # １文字以上の半角英字でも８桁の半角数字でもない場合
         else
