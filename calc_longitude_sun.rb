@@ -181,8 +181,8 @@ class CalcLongitudeSun
 
       # 地球自転遅れ補正値(日)計算
       #rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
-      #rotate_rev = (calc_dt + 0.8 * (@year - 1990)) / 86400.0
-      rotate_rev = (68.184 + 0.8 * (@year - 1990)) / 86400.0
+      rotate_rev = (calc_dt + 0.8 * (@year - 1990)) / 86400.0
+      #rotate_rev = (68.184 + 0.8 * (@year - 1990)) / 86400.0
 
       # 2000年1月1日力学時正午からの経過日数(日)計算
       day_progress = calc_day_progress
