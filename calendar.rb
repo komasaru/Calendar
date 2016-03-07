@@ -11,6 +11,9 @@
 #                                    (高野氏AWKのバグ部分)
 # 2015.12.13    mk-mode         1.03 休日に「山の日（8月11日）」を追加
 # 2016.01.03    mk-mode         1.04 コーディング再整形
+# 2016.03.03    mk-mode         1.05 地球自転遅れ補正値ΔTの計算機能を追加
+#                                    Ref: [NASA - Polynomial Expressions for Delta T](http://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
+# 2016.03.07    mk-mode         1.06 うるう秒挿入が明確な場合の処理を追加
 #
 # Copyright(C) 2011-2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -67,6 +70,7 @@
 require 'date'
 
 class Calendar
+  USAGE    = "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
   OPTION   = "abcdefghijkl"           # オプション初期値
   PI       = 3.141592653589793238462  # 円周率の定義
   K        = PI / 180.0               # （角度の）度からラジアンに変換する係数の定義
@@ -137,46 +141,38 @@ private
 
   # 引数チェック
   def check_arg
-    begin
-      # [ 第１引数 ] 存在する場合
-      unless ARGV[0].nil?
-        # 正規チェック ( １文字以上の半角英字 )
-        if ARGV[0].to_s =~ /^[abcdefghijkl]+$/
-          @option = ARGV[0].to_s
-          # [ 第２引数 ] 存在する場合
-          unless ARGV[1].nil?
-            # 正規チェック ( ８桁の半角数字 )
-            if ARGV[1].to_s =~ /^\d{8}$/
-              @date = ARGV[1].to_s
-            else
-              return "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
-            end
-          end
-        # 正規チェック ( ８桁の半角数字 )
-        elsif ARGV[0].to_s =~ /^\d{8}$/
-          # [ 第２引数 ] 存在する場合
-          unless ARGV[1].nil?
-            return "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
-          else
-            @date = ARGV[0].to_s
-          end
-        # １文字以上の半角英字でも８桁の半角数字でもない場合
-        else
-          return "引数指定 : [ 半角英字 ( abcdefghijkl ) ] [ 半角数字(８桁) ] "
+    # [ 第１引数 ] 存在する場合
+    unless ARGV[0].nil?
+      # 正規チェック ( １文字以上の半角英字 )
+      if ARGV[0].to_s =~ /^[abcdefghijkl]+$/
+        @option = ARGV[0].to_s
+        # [ 第２引数 ] 存在する場合
+        unless ARGV[1].nil?
+          # 正規チェック ( ８桁の半角数字 )
+          return USAGE unless ARGV[1].to_s =~ /^\d{8}$/
+          @date = ARGV[1].to_s
         end
+      # 正規チェック ( ８桁の半角数字 )
+      elsif ARGV[0].to_s =~ /^\d{8}$/
+        # [ 第２引数 ] 存在する場合
+        return USAGE unless ARGV[1].nil?
+        @date = ARGV[0].to_s
+      # １文字以上の半角英字でも８桁の半角数字でもない場合
+      else
+        return USAGE
       end
-
-      # 日付妥当性チェック
-      @year  = @date[0,4].to_i
-      @month = @date[4,2].to_i
-      @day   = @date[6,2].to_i
-      unless Date.valid_date?(@year, @month, @day)
-        return "引数指定 : 妥当な日付ではありません。"
-      end
-      return ""
-    rescue => e
-      raise
     end
+
+    # 日付妥当性チェック
+    @year  = @date[0,4].to_i
+    @month = @date[4,2].to_i
+    @day   = @date[6,2].to_i
+    unless Date.valid_date?(@year, @month, @day)
+      return "引数指定 : 妥当な日付ではありません。"
+    end
+    return ""
+  rescue => e
+    raise
   end
 
   # データ初期化
@@ -188,6 +184,15 @@ private
     @sekku    = init_sekku     # 節句
     @zassetsu = init_zassetsu  # 雑節
     @holiday  = init_holiday   # 休日
+    # グレゴリオ暦からユリウス通日を計算
+    @jd = gc_to_jd({
+      year:  @year,
+      month: @month,
+      day:   @day,
+      hour:  0,
+      min:   0,
+      sec:   0
+    })
   rescue => e
     raise
   end
@@ -207,8 +212,8 @@ private
     ary_kan, ary_shi, ary_kanshi = Array.new, Array.new, Array.new
 
     begin
-      KAN.each {|col| ary_kan << col.to_s}
-      SHI.each {|col| ary_shi << col.to_s}
+      KAN.each { |col| ary_kan << col.to_s }
+      SHI.each { |col| ary_shi << col.to_s }
       0.upto(59) do |i|
         ary_kanshi << ary_kan[i % 10] + ary_shi[i % 12 ]
       end
@@ -240,71 +245,27 @@ private
 
   # データ取得
   def get_data
-    @hash[:sekki24   ] = get_24sekki      # 二十四節気の取得
-    @hash[:zassetsu  ] = get_zassetsu     # 雑節の取得
-    @hash[:holiday   ] = get_holiday      # 休日の取得
-    cal_oc             = get_calendar_oc  # 旧暦の取得
-    @hash[:yobi      ] = cal_oc[ 0]
-    @hash[:jd        ] = cal_oc[ 1]
-    @hash[:kokei_sun ] = cal_oc[ 2]
-    @hash[:kokei_moon] = cal_oc[ 3]
-    @hash[:moon_age  ] = cal_oc[ 4]
-    @hash[:old_cal_y ] = cal_oc[ 5]
-    @hash[:old_cal_m ] = cal_oc[ 7]
-    @hash[:old_cal_d ] = cal_oc[ 8]
-    @hash[:old_cal_l ] = cal_oc[ 6]
-    @hash[:rokuyo    ] = cal_oc[ 9]
-    @hash[:kanshi    ] = cal_oc[10]
-    @hash[:sekku     ] = cal_oc[11]
+    @hash[:holiday ] = calc_holiday              # 休日
+    @hash[:sekki24 ] = calc_sekki_24(@jd)        # 二十四節気
+    @hash[:zassetsu] = calc_zassetsu             # 雑節
+    @hash[:yobi    ] = calc_yobi(@jd)            # 曜日
+    @hash[:kanshi  ] = calc_kanshi(@jd)          # 干支
+    @hash[:sekku   ] = calc_sekku                # 節句
+    @hash[:lon_sun ] = calc_longitude_sun(@jd)   # 黄経（太陽）
+    @hash[:lon_moon] = calc_longitude_moon(@jd)  # 黄経（月）
+    @hash[:moon_age] = calc_moon_age_noon(@jd)   # 月例
+    res = calc_oc                                # 旧暦
+    @hash[:oc_y    ] = res[0]                    # - 年
+    @hash[:oc_l    ] = res[1]                    # - 閏月フラグ
+    @hash[:oc_m    ] = res[2]                    # - 月
+    @hash[:oc_d    ] = res[3]                    # - 日
+    @hash[:rokuyo  ] = calc_rokuyo(@hash[:oc_m], @hash[:oc_d])  # 六曜
   rescue => e
     raise
   end
 
-  # 二十四節気の取得
-  def get_24sekki
-    begin
-      # グレゴリオ暦からユリウス通日を計算
-      jd = gc_to_jd({
-        year:  @year,
-        month: @month,
-        day:   @day,
-        hour:  0,
-        min:   0,
-        sec:   0
-      })
-
-      # 二十四節気計算
-      return calc_sekki_24(jd)
-    rescue => e
-      raise
-    end
-  end
-
-  # 雑節の取得
-  def get_zassetsu
-    begin
-      # グレゴリオ暦からユリウス通日を計算
-      jd = gc_to_jd({
-        year:   @year,
-        month:  @month,
-        day:    @day,
-        hour:   0,
-        min:    0,
-        sec:    0
-      })
-
-      # 雑節計算
-      res = calc_zassetsu(jd)
-      zassetsu_1 = res[:zassetsu_1]
-      zassetsu_2 = res[:zassetsu_2]
-      return [zassetsu_1, zassetsu_2]
-    rescue => e
-      raise
-    end
-  end
-
-  # 休日の取得
-  def get_holiday
+  # 休日の計算
+  def calc_holiday
     ary_holiday_0 = Array.new  # 変動の祝日用
     ary_holiday_1 = Array.new  # 国民の休日用
     ary_holiday_2 = Array.new  # 振替休日用
@@ -438,64 +399,269 @@ private
           break
         end
       end
-
       return code_holiday
     rescue => e
       raise
     end
   end
 
-  # 旧暦の取得
-  def get_calendar_oc
-    cal_data = Array.new
+  #=========================================================================
+  # 引数で与えられたユリウス通日(JD)の二十四節気を計算する
+  #   [ 引数 ]
+  #     jd : ユリウス通日
+  #   [ 戻り値 ]
+  #     sekki_24 : 二十四節気の黄経 ( 太陽 )
+  #                ( 二十四節気でなければ、999 )
+  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
+  #=========================================================================
+  def calc_sekki_24(jd)
+    # 計算対象日の太陽の黄経
+    lsun_today = calc_longitude_sun(jd)
+
+    # 計算対象日の翌日のユリウス日
+    jd  += 1
+    lsun_tomorrow = calc_longitude_sun(jd)
+
+    lsun_today0    = 15 * (lsun_today / 15.0).truncate
+    lsun_tomorrow0 = 15 * (lsun_tomorrow / 15.0).truncate
+    return lsun_today0 == lsun_tomorrow0 ? 999 : lsun_tomorrow0
+  rescue => e
+    raise
+  end
+
+  #=========================================================================
+  # 引数からの雑節を求める
+  #   [ 引数 ]
+  #     なし
+  #   [ 戻り値 ] ( hash )
+  #     z_1 : 雑節のｺｰﾄﾞ
+  #     z_2 : 雑節のｺｰﾄﾞ(同日に複数の雑節がある場合)
+  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
+  #=========================================================================
+  def calc_zassetsu
+    # 社日は他の雑節と重なる可能性があるので、
+    # 重なる場合はzassetu_2を使用する。
+    z_1 = 99
+    z_2 = 99
 
     begin
-      # グレゴリオ暦からユリウス通日を計算
-      jd = gc_to_jd({
-        year: @year, month: @month, day: @day,
-        hour: 0, min: 0, sec: 0
-      })
+      # 計算対象日の太陽の黄経
+      lsun_today = calc_longitude_sun(@jd)
 
-      # ユリウス通日から曜日を計算
-      yobi = calc_yobi(jd)
+      # 計算対象日の翌日の太陽の黄経
+      lsun_tomorrow = calc_longitude_sun(@jd + 1)
 
-      # 時刻引数を分解
-      tm1  = jd.truncate                # 整数部分
-      tm2  = jd - tm1                   # 小数部分
-      tm2 -= 9.0/24.0                   # JST ==> DT （補正時刻=0.0sec と仮定して計算）
-      t  = (tm2 + 0.5) / 36525.0        # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545.0) / 36525.0  # 2451545は基点までのユリウス日
+      # 計算対象日の5日前の太陽の黄経(社日計算用)
+      lsun_before_5 = calc_longitude_sun(@jd - 5)
 
-      # ユリウス通日から黄経(太陽)を計算
-      kokei_sun = get_longitude_sun(t)
+      # 計算対象日の4日前の太陽の黄経(社日計算用)
+      lsun_before_4 = calc_longitude_sun(@jd - 4)
 
-      # ユリウス通日から黄経(月)を計算
-      kokei_moon = get_longitude_moon(t)
+      # 計算対象日の5日後の太陽の黄経(社日計算用)
+      lsun_after_5 = calc_longitude_sun(@jd + 5)
 
-      # ユリウス通日から月齢(正午)を計算
-      moon_age = get_moon_age_noon(jd)
+      # 計算対象日の6日後の太陽の黄経(社日計算用)
+      lsun_after_6 = calc_longitude_sun(@jd + 6)
 
-      # 旧暦計算
-      oc = calc_oc(jd)
+      # 太陽の黄経の整数部分( 土用, 入梅, 半夏生 計算用 )
+      lsun_today0    = lsun_today.truncate
+      lsun_tomorrow0 = lsun_tomorrow.truncate
 
-      # 六曜計算
-      rokuyo = calc_rokuyo(oc[2], oc[3])
+      #### ここから各種雑節計算
+      # 0:節分 ( 立春の前日 )
+      sekki_24 = calc_sekki_24(@jd + 1)
+      z_1 = 0 if sekki_24 == 315  # 立春の黄経(太陽)
 
-      # 干支計算
-      kanshi = calc_kanshi(jd)
+      # 1:彼岸入（春） ( 春分の日の3日前 )
+      sekki_24 = calc_sekki_24(@jd + 3)
+      z_1 = 1 if sekki_24 == 0    # 春分の日の黄経(太陽)
 
-      # 節句計算
-      sekku = calc_sekku
+      # 2:彼岸（春） ( 春分の日 )
+      sekki_24 = calc_sekki_24(@jd)
+      z_1 = 2 if sekki_24 == 0    # 春分の日の黄経(太陽)
 
-      # 旧暦カレンダー配列作成
-      cal_data = [yobi, jd, kokei_sun, kokei_moon, moon_age]
-      0.upto(3) do |i|
-        cal_data << oc[i]
+      # 3:彼岸明（春） ( 春分の日の3日後 )
+      sekki_24 = calc_sekki_24(@jd - 3)
+      z_1 = 3 if sekki_24 == 0    # 春分の日の黄経(太陽)
+
+      # 4:社日（春） ( 春分の日に最も近い戊(つちのえ)の日 )
+      # * 計算対象日が戊の日の時、
+      #   * 4日後までもしくは4日前までに春分の日がある時、
+      #       この日が社日
+      #   * 5日後が春分の日の時、
+      #       * 春分点(黄経0度)が午前なら
+      #           この日が社日
+      #       * 春分点(黄経0度)が午後なら
+      #           この日の10日後が社日
+      if (@jd % 10).truncate == 4  # 戊の日
+        # [ 当日から4日後 ]
+        0.upto(4) do |i|
+          sekki_24 = calc_sekki_24(@jd + i)
+          if sekki_24 == 0  # 春分の日の黄経(太陽)
+            if z_1 == 99
+              z_1 = 4
+            else
+              z_2 = 4
+            end
+            break
+          end
+        end
+        # [ 1日前から4日前 ]
+        1.upto(4) do |i|
+          sekki_24 = calc_sekki_24(@jd - i)
+          if sekki_24 == 0  # 春分の日の黄経(太陽)
+            if z_1 == 99
+              z_1 = 4
+            else
+              z_2 = 4
+            end
+            break
+          end
+        end
+        # [ 5日後 ]
+        sekki_24 = calc_sekki_24(@jd + 5)
+        if sekki_24 == 0  # 春分の日の黄経(太陽)
+          # 春分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
+          # 0度(360度)以上なら、春分点が午前と判断
+          if (lsun_after_5 + lsun_after_6 + 360) / 2.0 >= 360
+            if z_1 == 99
+              z_1 = 4
+            else
+              z_2 = 4
+            end
+          end
+        end
+        # [ 5日前 ]
+        sekki_24 = calc_sekki_24(@jd - 5)
+        if sekki_24 == 0  # 春分の日の黄経(太陽)
+          # 春分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
+          # 0度(360度)未満なら、春分点が午後と判断
+          if (lsun_before_4 + lsun_before_5 + 360) / 2.0 < 360
+            if z_1 == 99
+              z_1 = 4
+            else
+              z_2 = 4
+            end
+          end
+        end
       end
-      cal_data << rokuyo
-      cal_data << kanshi
-      cal_data << sekku
-      return cal_data
+
+      # 5:土用入（春） ( 黄経(太陽) = 27度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 5 if lsun_tomorrow0 == 27
+      end
+
+      # 6:八十八夜 ( 立春から88日目(87日後) )
+      sekki_24 = calc_sekki_24(@jd - 87)
+      z_1 = 6 if sekki_24 == 315  # 立春の黄経(太陽)
+
+      # 7:入梅 ( 黄経(太陽) = 80度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 7 if lsun_tomorrow0 == 80
+      end
+
+      # 8:半夏生  ( 黄経(太陽) = 100度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 8 if lsun_tomorrow0 == 100
+      end
+
+      # 9:土用入（夏） ( 黄経(太陽) = 117度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 9 if lsun_tomorrow0 == 117
+      end
+
+      # 10:二百十日 ( 立春から210日目(209日後) )
+      sekki_24 = calc_sekki_24(@jd - 209)
+      z_1 = 10 if sekki_24 == 315  # 立春の黄経(太陽)
+
+      # 11:二百二十日 ( 立春から220日目(219日後) )
+      sekki_24 = calc_sekki_24(@jd - 219)
+      z_1 = 11 if sekki_24 == 315  # 立春の黄経(太陽)
+
+      # 12:彼岸入（秋） ( 秋分の日の3日前 )
+      sekki_24 = calc_sekki_24(@jd + 3)
+      z_1 = 12 if sekki_24 == 180  # 秋分の日の黄経(太陽)
+
+      # 13:彼岸（秋）   ( 秋分の日 )
+      sekki_24 = calc_sekki_24(@jd)
+      z_1 = 13 if sekki_24 == 180  # 秋分の日の黄経(太陽)
+
+      # 14:彼岸明（秋） ( 秋分の日の3日後 )
+      sekki_24 = calc_sekki_24(@jd - 3)
+      z_1 = 14 if sekki_24 == 180  # 春分の日の黄経(太陽)
+
+      # 15:社日（秋） ( 秋分の日に最も近い戊(つちのえ)の日 )
+      # * 計算対象日が戊の日の時、
+      #   * 4日後までもしくは4日前までに秋分の日がある時、
+      #       この日が社日
+      #   * 5日後が秋分の日の時、
+      #       * 秋分点(黄経180度)が午前なら
+      #           この日が社日
+      #       * 秋分点(黄経180度)が午後なら
+      #           この日の10日後が社日
+      if (@jd % 10).truncate == 4 # 戊の日
+        # [ 当日から4日後 ]
+        0.upto(4) do |i|
+          sekki_24 = calc_sekki_24(@jd + i)
+          if sekki_24 == 180  # 秋分の日の黄経(太陽)
+            if z_1 == 99
+              z_1 = 15
+            else
+              z_2 = 15
+            end
+            break
+          end
+        end
+        # [ 1日前から4日前 ]
+        1.upto(4) do |i|
+          sekki_24 = calc_sekki_24(@jd - i)
+          if sekki_24 == 180  # 秋分の日の黄経(太陽)
+            if z_1 == 99
+              z_1 = 15
+            else
+              z_2 = 15
+            end
+            break
+          end
+        end
+        # [ 5日後 ]
+        sekki_24 = calc_sekki_24(@jd + 5)
+        if sekki_24 == 180  # 秋分の日の黄経(太陽)
+          # 秋分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
+          # 180度以上なら、秋分点が午前と判断
+          if (lsun_after_5 + lsun_after_6) / 2.0 >= 180
+            if z_1 == 99
+              z_1 = 15
+            else
+              z_2 = 15
+            end
+          end
+        end
+        # [ 5日前 ]
+        sekki_24 = calc_sekki_24(@jd - 5)
+        if sekki_24 == 180  # 秋分の日の黄経(太陽)
+          # 秋分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
+          # 180度未満なら、秋分点が午後と判断
+          if (lsun_before_4 + lsun_before_5) / 2.0 < 180
+            if z_1 == 99
+              z_1 = 15
+            else
+              z_2 = 15
+            end
+          end
+        end
+      end
+
+      # 16:土用入（秋） ( 黄経(太陽) = 207度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 16 if lsun_tomorrow0 == 207
+      end
+
+      # 17:土用入（冬） ( 黄経(太陽) = 297度 )
+      unless lsun_today0 == lsun_tomorrow0
+        z_1 = 17 if lsun_tomorrow0 == 297
+      end
+      return {z_1: z_1, z_2: z_2}
     rescue => e
       raise
     end
@@ -520,16 +686,57 @@ private
   #     yobi ( 曜日 ( 0 - 6 ) )
   #=========================================================================
   def calc_yobi(jd)
-    return (jd + 2) % 7
+    return ((jd + 2) % 7).to_i
   rescue => e
     raise
   end
 
   #=========================================================================
-  # ユリウス日(JD)から旧暦を求める。
+  # ユリウス通日から干支(日)を計算する
   #
   #   [ 引数 ]
   #     jd : ユリウス通日
+  #
+  #   [ 戻り値 ]
+  #     kanshi ( 干支 ( 0(甲子) - 59(癸亥) ) )
+  #     ※[ ユリウス通日 - 10日 ] を60で割った剰余
+  #=========================================================================
+  def calc_kanshi(jd)
+    return ((jd - 10) % 60).truncate
+  rescue => e
+    raise
+  end
+
+  #=========================================================================
+  # 指定の日付(グレゴリオ暦[月,日])の節句を求める
+  #   [ 引数 ]
+  #     なし
+  #   [ 戻り値 ]
+  #     sekku : 節句のｺｰﾄﾞ
+  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
+  #=========================================================================
+  def calc_sekku
+    sekku = 9
+
+    begin
+      @sekku.each do |wk_sekku|
+        if wk_sekku[1] == @month && wk_sekku[2] == @day
+          sekku = wk_sekku[0]
+          break
+        end
+      end
+
+      return sekku
+    rescue => e
+      raise
+    end
+  end
+
+  #=========================================================================
+  # ユリウス日(JD)から旧暦を求める
+  #
+  #   [ 引数 ]
+  #     なし
   #
   #   [ 戻り値 ] ( array )
   #     kyureki[0] : 旧暦年
@@ -537,25 +744,17 @@ private
   #     kyureki[2] : 旧暦月
   #     kyureki[3] : 旧暦日
   #=========================================================================
-  def calc_oc(jd)
-    tm0 = jd
+  def calc_oc
+    tm0 = @jd
 
     begin
       # 二分二至,中気の時刻･黄経用配列宣言
-      #chu = Array.new(4, nil)
-      #chu.each_index do |i|
-      #  chu[i] = Array.new(2, 0)
-      #end
       chu = Array.new(4).map { Array.new(2, 0) }
 
       # 朔用配列宣言
       saku = Array.new(5, 0)
 
       # 朔日用配列宣言
-      #m = Array.new(5, nil)
-      #m.each_index do |i|
-      #  m[i] = Array.new(3, 0)
-      #end
       m = Array.new(5).map { Array.new(3, 0) }
 
       # 旧暦用配列宣言
@@ -611,9 +810,9 @@ private
 
       # 閏月検索Ｆｌａｇセット
       # （節月で４ヶ月の間に朔が５回あると、閏月がある可能性がある。）
-      # lap=0:平月  lap=1:閏月
-      lap = 0
-      lap = 1 if saku[4].truncate <= chu[3][0].truncate
+      # leap=0:平月  leap=1:閏月
+      leap = 0
+      leap = 1 if saku[4].truncate <= chu[3][0].truncate
 
       # 朔日行列の作成
       # m[i][0] ... 月名 ( 1:正月 2:２月 3:３月 .... )
@@ -631,13 +830,13 @@ private
       m[0][1] = 0
 
       1.upto(4) do |i|
-        if lap == 1 && i != 1
+        if leap == 1 && i != 1
           if chu[i-1][0].truncate <= saku[i-1].truncate ||
              chu[i-1][0].truncate >= saku[i].truncate
             m[i-1][0] = m[i-2][0]
             m[i-1][1] = 1
             m[i-1][2] = saku[i-1].truncate
-            lap = 0
+            leap = 0
           end
         end
         m[i][0] = m[i-1][0] + 1
@@ -702,7 +901,7 @@ private
   #   [ 戻り値 ]
   #     jd ( ユリウス日 )
   #=========================================================================
-  def gc_to_jd(hash = {})
+  def gc_to_jd(hash)
     year  = hash[:year]
     month = hash[:month]
     day   = hash[:day]
@@ -807,12 +1006,10 @@ private
       # 時刻引数を分解
       tm1  = jd.truncate  # 整数部分
       tm2  = jd - tm1     # 小数部分
-      tm2 -= 9.0/24.0     # JST ==> DT （補正時刻=0.0sec と仮定して計算）
+      tm2 -= 9.0 / 24.0   # JST ==> DT （補正時刻=0.0sec と仮定して計算）
 
       # 直前の二分二至の黄経 λsun0 を求める
-      t  = (tm2 + 0.5) / 36525.0        # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545.0) / 36525.0  # 2451545は基点までのユリウス日
-      rm_sun  = get_longitude_sun(t)
+      rm_sun  = calc_longitude_sun(jd)
       rm_sun0 = kbn * (rm_sun / kbn.to_f).truncate
 
       # 繰り返し計算によって直前の二分二至の時刻を計算する
@@ -820,9 +1017,9 @@ private
       delta_t1 = 0 ; delta_t2 = 1
       while (delta_t1 + delta_t2).abs > (1.0 / 86400.0)
         # λsun を計算
-        t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-        t += (tm1 - 2451545) / 36525.0 # 2451545は基点までのユリウス日
-        rm_sun = get_longitude_sun(t)
+        #t = tm1 + tm2 + 0.5
+        t = tm1 + tm2 + 9.0 / 24.0
+        rm_sun = calc_longitude_sun(t)
 
         # 黄経差 Δλ＝λsun －λsun0
         delta_rm = rm_sun - rm_sun0
@@ -847,7 +1044,6 @@ private
           tm2 += 1
           tm1 -= 1
         end
-
       end
 
       # 戻り値の作成
@@ -858,7 +1054,6 @@ private
       nibun_chu[0]  = tm2 + 9 / 24.0
       nibun_chu[0] += tm1
       nibun_chu[1]  = rm_sun0
-
       return nibun_chu
     rescue => e
       raise
@@ -877,14 +1072,12 @@ private
   #   ※ 引数、戻り値ともユリウス日で表し、時分秒は日の小数で表す。
   #=========================================================================
   def calc_saku(jd)
-    lc=1
+    lc = 1
 
     begin
       # 時刻引数を分解する
       tm1 = jd.truncate
       tm2 = jd - tm1
-
-      # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
       tm2 -= 9 / 24.0
 
       # 繰り返し計算によって朔の時刻を計算する
@@ -892,10 +1085,9 @@ private
       delta_t1 = 0 ; delta_t2 = 1
       while (delta_t1 + delta_t2).abs > (1.0 / 86400.0)
         # 太陽の黄経λsun ,月の黄経λmoon を計算
-        t  = (tm2 + 0.5) / 36525.0
-        t += (tm1 - 2451545) / 36525.0
-        rm_sun  = get_longitude_sun(t)
-        rm_moon = get_longitude_moon(t)
+        t = tm1 + tm2 + 9 / 24.0
+        rm_sun  = calc_longitude_sun(t)
+        rm_moon = calc_longitude_moon(t)
 
         # 月と太陽の黄経差Δλ
         # Δλ＝λmoon－λsun
@@ -920,7 +1112,7 @@ private
         # 時刻引数の補正値 Δt
         delta_t1  = (delta_rm * 29.530589 / 360.0).truncate
         delta_t2  = delta_rm * 29.530589 / 360.0
-        delta_t2 -= delta_t1;
+        delta_t2 -= delta_t1
 
         # 時刻引数の補正
         tm1 = tm1 - delta_t1
@@ -949,7 +1141,8 @@ private
 
       # 時刻引数を合成するのと、DT ==> JST 変換を行い、戻り値とする
       # （補正時刻=0.0sec と仮定して計算）
-      return tm2 + tm1 + 9 / 24.0
+      saku = tm2 + tm1 + 9 / 24.0
+      return saku
     rescue => e
       raise
     end
@@ -976,32 +1169,48 @@ private
   end
 
   #=========================================================================
-  # 太陽の黄経 λsun を計算する
+  # 太陽の黄経 λsun 計算
   #=========================================================================
-  def get_longitude_sun(t)
+  def calc_longitude_sun(jd)
     begin
-      # 摂動項の計算
-      th  = 0.0004 * Math.cos(K * normalize_angle( 31557.0 * t + 161.0))
-      th += 0.0004 * Math.cos(K * normalize_angle( 29930.0 * t +  48.0))
-      th += 0.0005 * Math.cos(K * normalize_angle(  2281.0 * t + 221.0))
-      th += 0.0005 * Math.cos(K * normalize_angle(   155.0 * t + 118.0))
-      th += 0.0006 * Math.cos(K * normalize_angle( 33718.0 * t + 316.0))
-      th += 0.0007 * Math.cos(K * normalize_angle(  9038.0 * t +  64.0))
-      th += 0.0007 * Math.cos(K * normalize_angle(  3035.0 * t + 110.0))
-      th += 0.0007 * Math.cos(K * normalize_angle( 65929.0 * t +  45.0))
-      th += 0.0013 * Math.cos(K * normalize_angle( 22519.0 * t + 352.0))
-      th += 0.0015 * Math.cos(K * normalize_angle( 45038.0 * t + 254.0))
-      th += 0.0018 * Math.cos(K * normalize_angle(445267.0 * t + 208.0))
-      th += 0.0018 * Math.cos(K * normalize_angle(    19.0 * t + 159.0))
-      th += 0.0020 * Math.cos(K * normalize_angle( 32964.0 * t + 158.0))
-      th += 0.0200 * Math.cos(K * normalize_angle( 71998.1 * t + 265.1))
-      th -= 0.0048 * Math.cos(K * normalize_angle(35999.05 * t + 267.52)) * t
-      th += 1.9147 * Math.cos(K * normalize_angle(35999.05 * t + 267.52))
+      year, month, day, hour, min, sec = jd_to_ymdt(jd)
 
-      # 比例項の計算
-      ang = normalize_angle(36000.7695 * t)
-      ang = normalize_angle(ang + 280.4659)
-      return normalize_angle(th + ang)
+      # 時分秒から日計算
+      t = (hour * 60 * 60 + min * 60 + sec) / 86400.0
+
+      # 地球自転遅れ補正値(日)計算
+      #rotate_rev = (calc_dt(year, month, day) + 0.8 * (year - 1990)) / 86400.0
+      rotate_rev = calc_dt(year, month, day) / 86400.0  #  国立天文台の 2015 - 2017 のΔT値は 68
+
+      # 2000年1月1日力学時正午からの経過日数(日)計算
+      day_progress = calc_day_progress(year, month, day)
+
+      # 経過ユリウス年(日)計算
+      # ( 2000.0(2000年1月1日力学時正午)からの経過年数 (年) )
+      jy = (day_progress + t + rotate_rev) / 365.25
+
+      # 太陽黄経計算
+      rm  = 0.0003 * Math.sin(K * normalize_angle(329.7  +   44.43  * jy))
+      rm += 0.0003 * Math.sin(K * normalize_angle(352.5  + 1079.97  * jy))
+      rm += 0.0004 * Math.sin(K * normalize_angle( 21.1  +  720.02  * jy))
+      rm += 0.0004 * Math.sin(K * normalize_angle(157.3  +  299.30  * jy))
+      rm += 0.0004 * Math.sin(K * normalize_angle(234.9  +  315.56  * jy))
+      rm += 0.0005 * Math.sin(K * normalize_angle(291.2  +   22.81  * jy))
+      rm += 0.0005 * Math.sin(K * normalize_angle(207.4  +    1.50  * jy))
+      rm += 0.0006 * Math.sin(K * normalize_angle( 29.8  +  337.18  * jy))
+      rm += 0.0007 * Math.sin(K * normalize_angle(206.8  +   30.35  * jy))
+      rm += 0.0007 * Math.sin(K * normalize_angle(153.3  +   90.38  * jy))
+      rm += 0.0008 * Math.sin(K * normalize_angle(132.5  +  659.29  * jy))
+      rm += 0.0013 * Math.sin(K * normalize_angle( 81.4  +  225.18  * jy))
+      rm += 0.0015 * Math.sin(K * normalize_angle(343.2  +  450.37  * jy))
+      rm += 0.0018 * Math.sin(K * normalize_angle(251.3  +    0.20  * jy))
+      rm += 0.0018 * Math.sin(K * normalize_angle(297.8  + 4452.67  * jy))
+      rm += 0.0020 * Math.sin(K * normalize_angle(247.1  +  329.64  * jy))
+      rm += 0.0048 * Math.sin(K * normalize_angle(234.95 +   19.341 * jy))
+      rm += 0.0200 * Math.sin(K * normalize_angle(355.05 +  719.981 * jy))
+      rm += (1.9146 - 0.00005 * jy) * Math.sin(K * normalize_angle(357.538 + 359.991 * jy))
+      rm += normalize_angle(280.4603 + 360.00769 * jy)
+      return normalize_angle(rm)
     rescue => e
       raise
     end
@@ -1010,78 +1219,302 @@ private
   #=========================================================================
   # 月の黄経 λmoon を計算する
   #=========================================================================
-  def get_longitude_moon(t)
+  def calc_longitude_moon(jd)
     begin
-      # 摂動項の計算
-      th  = 0.0003 * Math.cos(K * normalize_angle(2322131.0  * t + 191.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle(   4067.0  * t +  70.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle( 549197.0  * t + 220.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle(1808933.0  * t +  58.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle( 349472.0  * t + 337.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle( 381404.0  * t + 354.0 ))
-      th += 0.0003 * Math.cos(K * normalize_angle( 958465.0  * t + 340.0 ))
-      th += 0.0004 * Math.cos(K * normalize_angle(  12006.0  * t + 187.0 ))
-      th += 0.0004 * Math.cos(K * normalize_angle(  39871.0  * t + 223.0 ))
-      th += 0.0005 * Math.cos(K * normalize_angle( 509131.0  * t + 242.0 ))
-      th += 0.0005 * Math.cos(K * normalize_angle(1745069.0  * t +  24.0 ))
-      th += 0.0005 * Math.cos(K * normalize_angle(1908795.0  * t +  90.0 ))
-      th += 0.0006 * Math.cos(K * normalize_angle(2258267.0  * t + 156.0 ))
-      th += 0.0006 * Math.cos(K * normalize_angle( 111869.0  * t +  38.0 ))
-      th += 0.0007 * Math.cos(K * normalize_angle(  27864.0  * t + 127.0 ))
-      th += 0.0007 * Math.cos(K * normalize_angle( 485333.0  * t + 186.0 ))
-      th += 0.0007 * Math.cos(K * normalize_angle( 405201.0  * t +  50.0 ))
-      th += 0.0007 * Math.cos(K * normalize_angle( 790672.0  * t + 114.0 ))
-      th += 0.0008 * Math.cos(K * normalize_angle(1403732.0  * t +  98.0 ))
-      th += 0.0009 * Math.cos(K * normalize_angle( 858602.0  * t + 129.0 ))
-      th += 0.0011 * Math.cos(K * normalize_angle(1920802.0  * t + 186.0 ))
-      th += 0.0012 * Math.cos(K * normalize_angle(1267871.0  * t + 249.0 ))
-      th += 0.0016 * Math.cos(K * normalize_angle(1856938.0  * t + 152.0 ))
-      th += 0.0018 * Math.cos(K * normalize_angle( 401329.0  * t + 274.0 ))
-      th += 0.0021 * Math.cos(K * normalize_angle( 341337.0  * t +  16.0 ))
-      th += 0.0021 * Math.cos(K * normalize_angle(  71998.0  * t +  85.0 ))
-      th += 0.0021 * Math.cos(K * normalize_angle( 990397.0  * t + 357.0 ))
-      th += 0.0022 * Math.cos(K * normalize_angle( 818536.0  * t + 151.0 ))
-      th += 0.0023 * Math.cos(K * normalize_angle( 922466.0  * t + 163.0 ))
-      th += 0.0024 * Math.cos(K * normalize_angle(  99863.0  * t + 122.0 ))
-      th += 0.0026 * Math.cos(K * normalize_angle(1379739.0  * t +  17.0 ))
-      th += 0.0027 * Math.cos(K * normalize_angle( 918399.0  * t + 182.0 ))
-      th += 0.0028 * Math.cos(K * normalize_angle(   1934.0  * t + 145.0 ))
-      th += 0.0037 * Math.cos(K * normalize_angle( 541062.0  * t + 259.0 ))
-      th += 0.0038 * Math.cos(K * normalize_angle(1781068.0  * t +  21.0 ))
-      th += 0.0040 * Math.cos(K * normalize_angle(    133.0  * t +  29.0 ))
-      th += 0.0040 * Math.cos(K * normalize_angle(1844932.0  * t +  56.0 ))
-      th += 0.0040 * Math.cos(K * normalize_angle(1331734.0  * t + 283.0 ))
-      th += 0.0050 * Math.cos(K * normalize_angle( 481266.0  * t + 205.0 ))
-      th += 0.0052 * Math.cos(K * normalize_angle(  31932.0  * t + 107.0 ))
-      th += 0.0068 * Math.cos(K * normalize_angle( 926533.0  * t + 323.0 ))
-      th += 0.0079 * Math.cos(K * normalize_angle( 449334.0  * t + 188.0 ))
-      th += 0.0085 * Math.cos(K * normalize_angle( 826671.0  * t + 111.0 ))
-      th += 0.0100 * Math.cos(K * normalize_angle(1431597.0  * t + 315.0 ))
-      th += 0.0107 * Math.cos(K * normalize_angle(1303870.0  * t + 246.0 ))
-      th += 0.0110 * Math.cos(K * normalize_angle( 489205.0  * t + 142.0 ))
-      th += 0.0125 * Math.cos(K * normalize_angle(1443603.0  * t +  52.0 ))
-      th += 0.0154 * Math.cos(K * normalize_angle(  75870.0  * t +  41.0 ))
-      th += 0.0304 * Math.cos(K * normalize_angle( 513197.9  * t + 222.5 ))
-      th += 0.0347 * Math.cos(K * normalize_angle( 445267.1  * t +  27.9 ))
-      th += 0.0409 * Math.cos(K * normalize_angle( 441199.8  * t +  47.4 ))
-      th += 0.0458 * Math.cos(K * normalize_angle( 854535.2  * t + 148.2 ))
-      th += 0.0533 * Math.cos(K * normalize_angle(1367733.1  * t + 280.7 ))
-      th += 0.0571 * Math.cos(K * normalize_angle( 377336.3  * t +  13.2 ))
-      th += 0.0588 * Math.cos(K * normalize_angle(  63863.5  * t + 124.2 ))
-      th += 0.1144 * Math.cos(K * normalize_angle( 966404.0  * t + 276.5 ))
-      th += 0.1851 * Math.cos(K * normalize_angle(  35999.05 * t +  87.53))
-      th += 0.2136 * Math.cos(K * normalize_angle( 954397.74 * t + 179.93))
-      th += 0.6583 * Math.cos(K * normalize_angle( 890534.22 * t + 145.7 ))
-      th += 1.2740 * Math.cos(K * normalize_angle( 413335.35 * t +  10.74))
-      th += 6.2888 * Math.cos(K * normalize_angle(477198.868 * t + 44.963))
+      year, month, day, hour, min, sec = jd_to_ymdt(jd)
 
-      # 比例項の計算
-      ang = normalize_angle(481267.8809 * t)
-      ang = normalize_angle(ang + 218.3162)
-      return normalize_angle(th + ang)
+      # 時分秒から日計算
+      t = (hour * 60 * 60 + min * 60 + sec) / 86400.0
+
+      # 地球自転遅れ補正値(日)計算
+      #rotate_rev = (calc_dt(year, month, day) + 0.8 * (year - 1990)) / 86400.0
+      #rotate_rev = 68 / 86400.0      #  国立天文台の 2015 - 2017 の設定値は 68
+      #rotate_rev = 68.184 / 86400.0  # 2015-07-01 以降は 32.184 + 36 = 68.184 
+      rotate_rev = calc_dt(year, month, day) / 86400.0
+
+      # 2000年1月1日力学時正午からの経過日数(日)計算
+      day_progress = calc_day_progress(year, month, day)
+
+      # 経過ユリウス年(日)計算
+      # ( 2000.0(2000年1月1日力学時正午)からの経過年数 (年) )
+      jy = (day_progress + t + rotate_rev) / 365.25
+
+      # 月黄経計算
+      am  = 0.0006 * Math.sin(K * normalize_angle( 54.0 + 19.3  * jy))
+      am += 0.0006 * Math.sin(K * normalize_angle( 71.0 +  0.2  * jy))
+      am += 0.0020 * Math.sin(K * normalize_angle( 55.0 + 19.34 * jy))
+      am += 0.0040 * Math.sin(K * normalize_angle(119.5 +  1.33 * jy))
+
+      # 摂動項の計算
+      rm_moon  = 0.0003 * Math.sin(K * normalize_angle(280.0   + 23221.3    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(161.0   +    40.7    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(311.0   +  5492.0    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle(147.0   + 18089.3    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle( 66.0   +  3494.7    * jy))
+      rm_moon += 0.0003 * Math.sin(K * normalize_angle( 83.0   +  3814.0    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle( 20.0   +   720.0    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle( 71.0   +  9584.7    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle(278.0   +   120.1    * jy))
+      rm_moon += 0.0004 * Math.sin(K * normalize_angle(313.0   +   398.7    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(332.0   +  5091.3    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(114.0   + 17450.7    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(181.0   + 19088.0    * jy))
+      rm_moon += 0.0005 * Math.sin(K * normalize_angle(247.0   + 22582.7    * jy))
+      rm_moon += 0.0006 * Math.sin(K * normalize_angle(128.0   +  1118.7    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(216.0   +   278.6    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(275.0   +  4853.3    * jy))
+      rm_moon += 0.0007 * Math.sin(K * normalize_angle(140.0   +  4052.0    * jy))
+      rm_moon += 0.0008 * Math.sin(K * normalize_angle(204.0   +  7906.7    * jy))
+      rm_moon += 0.0008 * Math.sin(K * normalize_angle(188.0   + 14037.3    * jy))
+      rm_moon += 0.0009 * Math.sin(K * normalize_angle(218.0   +  8586.0    * jy))
+      rm_moon += 0.0011 * Math.sin(K * normalize_angle(276.5   + 19208.02   * jy))
+      rm_moon += 0.0012 * Math.sin(K * normalize_angle(339.0   + 12678.71   * jy))
+      rm_moon += 0.0016 * Math.sin(K * normalize_angle(242.2   + 18569.38   * jy))
+      rm_moon += 0.0018 * Math.sin(K * normalize_angle(  4.1   +  4013.29   * jy))
+      rm_moon += 0.0020 * Math.sin(K * normalize_angle( 55.0   +    19.34   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle(105.6   +  3413.37   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle(175.1   +   719.98   * jy))
+      rm_moon += 0.0021 * Math.sin(K * normalize_angle( 87.5   +  9903.97   * jy))
+      rm_moon += 0.0022 * Math.sin(K * normalize_angle(240.6   +  8185.36   * jy))
+      rm_moon += 0.0024 * Math.sin(K * normalize_angle(252.8   +  9224.66   * jy))
+      rm_moon += 0.0024 * Math.sin(K * normalize_angle(211.9   +   988.63   * jy))
+      rm_moon += 0.0026 * Math.sin(K * normalize_angle(107.2   + 13797.39   * jy))
+      rm_moon += 0.0027 * Math.sin(K * normalize_angle(272.5   +  9183.99   * jy))
+      rm_moon += 0.0037 * Math.sin(K * normalize_angle(349.1   +  5410.62   * jy))
+      rm_moon += 0.0039 * Math.sin(K * normalize_angle(111.3   + 17810.68   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle(119.5   +     1.33   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle(145.6   + 18449.32   * jy))
+      rm_moon += 0.0040 * Math.sin(K * normalize_angle( 13.2   + 13317.34   * jy))
+      rm_moon += 0.0048 * Math.sin(K * normalize_angle(235.0   +    19.34   * jy))
+      rm_moon += 0.0050 * Math.sin(K * normalize_angle(295.4   +  4812.66   * jy))
+      rm_moon += 0.0052 * Math.sin(K * normalize_angle(197.2   +   319.32   * jy))
+      rm_moon += 0.0068 * Math.sin(K * normalize_angle( 53.2   +  9265.33   * jy))
+      rm_moon += 0.0079 * Math.sin(K * normalize_angle(278.2   +  4493.34   * jy))
+      rm_moon += 0.0085 * Math.sin(K * normalize_angle(201.5   +  8266.71   * jy))
+      rm_moon += 0.0100 * Math.sin(K * normalize_angle( 44.89  + 14315.966  * jy))
+      rm_moon += 0.0107 * Math.sin(K * normalize_angle(336.44  + 13038.696  * jy))
+      rm_moon += 0.0110 * Math.sin(K * normalize_angle(231.59  +  4892.052  * jy))
+      rm_moon += 0.0125 * Math.sin(K * normalize_angle(141.51  + 14436.029  * jy))
+      rm_moon += 0.0153 * Math.sin(K * normalize_angle(130.84  +   758.698  * jy))
+      rm_moon += 0.0305 * Math.sin(K * normalize_angle(312.49  +  5131.979  * jy))
+      rm_moon += 0.0348 * Math.sin(K * normalize_angle(117.84  +  4452.671  * jy))
+      rm_moon += 0.0410 * Math.sin(K * normalize_angle(137.43  +  4411.998  * jy))
+      rm_moon += 0.0459 * Math.sin(K * normalize_angle(238.18  +  8545.352  * jy))
+      rm_moon += 0.0533 * Math.sin(K * normalize_angle( 10.66  + 13677.331  * jy))
+      rm_moon += 0.0572 * Math.sin(K * normalize_angle(103.21  +  3773.363  * jy))
+      rm_moon += 0.0588 * Math.sin(K * normalize_angle(214.22  +   638.635  * jy))
+      rm_moon += 0.1143 * Math.sin(K * normalize_angle(  6.546 +  9664.0404 * jy))
+      rm_moon += 0.1856 * Math.sin(K * normalize_angle(177.525 +   359.9905 * jy))
+      rm_moon += 0.2136 * Math.sin(K * normalize_angle(269.926 +  9543.9773 * jy))
+      rm_moon += 0.6583 * Math.sin(K * normalize_angle(235.700 +  8905.3422 * jy))
+      rm_moon += 1.2740 * Math.sin(K * normalize_angle(100.738 +  4133.3536 * jy))
+      rm_moon += 6.2887 * Math.sin(K * normalize_angle(134.961 +  4771.9886 * jy + am))
+      rm_moon += normalize_angle(218.3161 + 4812.67881 * jy)
+      return normalize_angle(rm_moon)
     rescue => e
       raise
     end
+  end
+
+  #=========================================================================
+  # ΔT の計算
+  #
+  #   1972-01-01 以降、うるう秒挿入済みの年+αまでは、以下で算出
+  #     TT - UTC = ΔT + DUT1 = TAI + 32.184 - UTC = ΔAT + 32.184
+  #   [うるう秒実施日一覧](http://jjy.nict.go.jp/QandA/data/leapsec.html)
+  #=========================================================================
+  def calc_dt(year, month, day)
+    ymd = sprintf("%04d-%02d-%02d", year, month, day)
+    case
+    when year < -500
+      t = (year-1820) / 100.0
+      dt  = -20
+      dt += 32 * t ** 2
+    when -500 <= year && year < 500
+      t = year / 100.0
+      dt  = 10583.6
+      dt -= 1014.41 * t
+      dt += 33.78311 * t ** 2
+      dt -= 5.952053 * t ** 3
+      dt -= 0.1798452 * t ** 4
+      dt += 0.022174192 * t ** 5
+      dt += 0.0090316521 * t ** 6
+    when 500 <= year && year < 1600
+      t = (year - 1000) / 100.0
+      dt  = 1574.2
+      dt -= 556.01 * t
+      dt += 71.23472 * t ** 2
+      dt += 0.319781 * t ** 3
+      dt -= 0.8503463 * t ** 4
+      dt -= 0.005050998 * t ** 5
+      dt += 0.0083572073 * t ** 6
+    when 1600 <= year && year < 1700
+      t = year - 1600
+      dt  = 120
+      dt -= 0.9808 * t
+      dt -= 0.01532 * t ** 2
+      dt += t ** 3 / 7129.0
+    when 1700 <= year && year < 1800
+      t = year - 1700
+      dt  = 8.83
+      dt += 0.1603 * t
+      dt -= 0.0059285 * t ** 2
+      dt += 0.00013336 * t ** 3
+      dt -= t ** 4 / 1174000.0
+    when 1800 <= year && year < 1860
+      t = year - 1800
+      dt  = 13.72
+      dt -= 0.332447 * t
+      dt += 0.0068612 * t ** 2
+      dt += 0.0041116 * t ** 3
+      dt -= 0.00037436 * t ** 4
+      dt += 0.0000121272 * t ** 5
+      dt -= 0.0000001699 * t ** 6
+      dt += 0.000000000875 * t ** 7
+    when 1860 <= year && year < 1900
+      t = year - 1860
+      dt  = 7.62
+      dt += 0.5737 * t
+      dt -= 0.251754 * t ** 2
+      dt += 0.01680668 * t ** 3
+      dt -= 0.0004473624 * t ** 4
+      dt += t ** 5 / 233174.0
+    when 1900 <= year && year < 1920
+      t = year - 1900
+      dt  = -2.79
+      dt += 1.494119 * t
+      dt -= 0.0598939 * t ** 2
+      dt += 0.0061966 * t ** 3
+      dt -= 0.000197 * t ** 4
+    when 1920 <= year && year < 1941
+      t = year - 1920
+      dt  = 21.20
+      dt += 0.84493 * t
+      dt -= 0.076100 * t ** 2
+      dt += 0.0020936 * t ** 3
+    when 1941 <= year && year < 1961
+      t = year - 1950
+      dt  = 29.07
+      dt += 0.407 * t
+      dt -= t ** 2 / 233.0
+      dt += t ** 3 / 2547.0
+    when 1961 <= year && year < 1986
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 1, 1)
+        t = year - 1975
+        dt  = 45.45
+        dt += 1.067 * t
+        dt -= t ** 2 / 260.0
+        dt -= t ** 3 / 718.0
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 7, 1)
+        dt = 32.184 + 10
+      when ymd < sprintf("%04d-%02d-%02d", 1973, 1, 1)
+        dt = 32.184 + 11
+      when ymd < sprintf("%04d-%02d-%02d", 1974, 1, 1)
+        dt = 32.184 + 12
+      when ymd < sprintf("%04d-%02d-%02d", 1975, 1, 1)
+        dt = 32.184 + 13
+      when ymd < sprintf("%04d-%02d-%02d", 1976, 1, 1)
+        dt = 32.184 + 14
+      when ymd < sprintf("%04d-%02d-%02d", 1977, 1, 1)
+        dt = 32.184 + 15
+      when ymd < sprintf("%04d-%02d-%02d", 1978, 1, 1)
+        dt = 32.184 + 16
+      when ymd < sprintf("%04d-%02d-%02d", 1979, 1, 1)
+        dt = 32.184 + 17
+      when ymd < sprintf("%04d-%02d-%02d", 1980, 1, 1)
+        dt = 32.184 + 18
+      when ymd < sprintf("%04d-%02d-%02d", 1981, 7, 1)
+        dt = 32.184 + 19
+      when ymd < sprintf("%04d-%02d-%02d", 1982, 7, 1)
+        dt = 32.184 + 20
+      when ymd < sprintf("%04d-%02d-%02d", 1983, 7, 1)
+        dt = 32.184 + 21
+      when ymd < sprintf("%04d-%02d-%02d", 1985, 7, 1)
+        dt = 32.184 + 22
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      end
+    when 1986 <= year && year < 2005
+      # t = year - 2000
+      # dt  = 63.86
+      # dt += 0.3345 * t
+      # dt -= 0.060374 * t ** 2
+      # dt += 0.0017275 * t ** 3
+      # dt += 0.000651814 * t ** 4
+      # dt += 0.00002373599 * t ** 5
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      when ymd < sprintf("%04d-%02d-%02d", 1990, 1, 1)
+        dt = 32.184 + 24
+      when ymd < sprintf("%04d-%02d-%02d", 1991, 1, 1)
+        dt = 32.184 + 25
+      when ymd < sprintf("%04d-%02d-%02d", 1992, 7, 1)
+        dt = 32.184 + 26
+      when ymd < sprintf("%04d-%02d-%02d", 1993, 7, 1)
+        dt = 32.184 + 27
+      when ymd < sprintf("%04d-%02d-%02d", 1994, 7, 1)
+        dt = 32.184 + 28
+      when ymd < sprintf("%04d-%02d-%02d", 1996, 1, 1)
+        dt = 32.184 + 29
+      when ymd < sprintf("%04d-%02d-%02d", 1997, 7, 1)
+        dt = 32.184 + 30
+      when ymd < sprintf("%04d-%02d-%02d", 1999, 1, 1)
+        dt = 32.184 + 31
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      end
+    when 2005 <= year && year < 2050
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      when ymd < sprintf("%04d-%02d-%02d", 2009, 1, 1)
+        dt = 32.184 + 33
+      when ymd < sprintf("%04d-%02d-%02d", 2012, 7, 1)
+        dt = 32.184 + 34
+      when ymd < sprintf("%04d-%02d-%02d", 2015, 7, 1)
+        dt = 32.184 + 35
+      when ymd < sprintf("%04d-%02d-%02d", 2017, 7, 1)  # <= 第27回うるう秒実施までの暫定措置
+        dt = 32.184 + 36
+      else
+        t = year - 2000
+        dt  = 62.92
+        dt += 0.32217 * t
+        dt += 0.005589 * t ** 2
+      end
+    when 2050 <= year && year <= 2150
+      dt  = -20
+      dt += 32 * ((year - 1820)/100.0) ** 2
+      dt -= 0.5628 * (2150 - year)
+    when 2150 < year
+      t = (year-1820)/100
+      dt  = -20
+      dt += 32 * t ** 2
+    end
+    return dt
+  rescue => e
+    raise
+  end
+
+  #=========================================================================
+  # 2000年1月1日力学時正午からの経過日数(日)
+  #=========================================================================
+  def calc_day_progress(year, month, day)
+    year -= 2000
+
+    # 1月,2月は前年の13月,14月とする
+    if month < 3
+      year  -= 1
+      month += 12
+    end
+
+    day_progress  = 365 * year + 30 * month + day - 33.5 - 9 / 24.0
+    day_progress += (3 * (month + 1) / 5.0).truncate
+    day_progress += (year / 4.0).truncate
+    return day_progress
+  rescue => e
+    raise
   end
 
   #=========================================================================
@@ -1094,16 +1527,11 @@ private
   #   [ 戻り値 ]
   #     moon_age ( 月齢 )
   #=========================================================================
-  def get_moon_age_noon(jd)
-    begin
-      # 直前の朔を計算
-      saku_last = calc_saku(jd)
-
-      # 月齢計算
-      return jd + 0.5 - saku_last
-    rescue => e
-      raise
-    end
+  def calc_moon_age_noon(jd)
+    saku_last = calc_saku(jd)  # 直前の朔を計算
+    return jd + 0.5 - saku_last
+  rescue => e
+    raise
   end
 
   #=========================================================================
@@ -1139,361 +1567,6 @@ private
     raise
   end
 
-  #=========================================================================
-  # ユリウス通日から干支(日)を計算する
-  #
-  #   [ 引数 ]
-  #     jd : ユリウス通日
-  #
-  #   [ 戻り値 ]
-  #     kanshi ( 干支 ( 0(甲子) - 59(癸亥) ) )
-  #     ※[ ユリウス通日 - 10日 ] を60で割った剰余
-  #=========================================================================
-  def calc_kanshi(jd)
-    return ((jd - 10) % 60).truncate
-  rescue => e
-    raise
-  end
-
-  #=========================================================================
-  # 引数で与えられたユリウス通日(JD)の二十四節気を計算する
-  #   [ 引数 ]
-  #     jd : ユリウス通日
-  #   [ 戻り値 ]
-  #     sekki_24 : 二十四節気の黄経 ( 太陽 )
-  #                ( 二十四節気でなければ、999 )
-  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
-  #=========================================================================
-  def calc_sekki_24(jd)
-    begin
-      # 時刻引数を分解
-      tm1  = jd.truncate  # 整数部分
-      tm2  = jd - tm1     # 小数部分
-      tm2 -= 9 / 24.0     # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-
-      # 計算対象日の太陽の黄経
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_today = get_longitude_sun(t)
-
-      # 計算対象日の翌日のユリウス日
-      jd  += 1            # 1日プラス
-      tm1  = jd.truncate  # 整数部分
-      tm2  = jd - tm1     # 小数部分
-      tm2 -= 9 / 24.0     # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-
-      # 計算対象日の翌日のの太陽の黄経
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_tomorrow = get_longitude_sun(t)
-
-      lsun_today0    = 15 * (lsun_today / 15.0).truncate
-      lsun_tomorrow0 = 15 * (lsun_tomorrow / 15.0).truncate
-      return lsun_today0 == lsun_tomorrow0 ? 999 : lsun_tomorrow0
-    rescue => e
-      raise
-    end
-  end
-
-  #=========================================================================
-  # 引数で与えられた日付(グレゴリオ暦[月,日])の節句を求める
-  #   [ 引数 ]
-  #     なし
-  #   [ 戻り値 ]
-  #     sekku : 節句のｺｰﾄﾞ
-  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
-  #=========================================================================
-  def calc_sekku
-    sekku = 9
-
-    begin
-      @sekku.each do |wk_sekku|
-        if wk_sekku[1] == @month && wk_sekku[2] == @day
-          sekku = wk_sekku[0]
-          break
-        end
-      end
-
-      return sekku
-    rescue => e
-      raise
-    end
-  end
-
-  #=========================================================================
-  # 引数からの雑節を求める
-  #   [ 引数 ]
-  #     jd        : ユリウス通日
-  #   [ 戻り値 ] ( hash )
-  #     zassetsu_1 : 雑節のｺｰﾄﾞ
-  #     zassetsu_2 : 雑節のｺｰﾄﾞ(同日に複数の雑節がある場合)
-  #   ※基点ユリウス日(2451545)：2000/1/2/0/0/0(年/月/日/時/分/秒…世界時)
-  #=========================================================================
-  def calc_zassetsu(jd)
-    # 社日は他の雑節と重なる可能性があるので、
-    # 重なる場合はzassetu_2を使用する。
-    zassetsu_1 = 99
-    zassetsu_2 = 99
-
-    begin
-      # 計算対象日の太陽の黄経
-      tm1  = jd.truncate              # 整数部分
-      tm2  = jd - tm1                 # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_today = get_longitude_sun(t)
-
-      # 計算対象日の翌日の太陽の黄経
-      jd2  = jd + 1                   # 1日プラス
-      tm1  = jd2.truncate             # 整数部分
-      tm2  = jd2 - tm1                # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_tomorrow = get_longitude_sun(t)
-
-      # 計算対象日の5日前の太陽の黄経(社日計算用)
-      jd2  = jd - 5                   # 5日マイナス
-      tm1  = jd2.truncate             # 整数部分
-      tm2  = jd2 - tm1                # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_before_5 = get_longitude_sun(t)
-
-      # 計算対象日の4日前の太陽の黄経(社日計算用)
-      jd2  = jd - 4                   # 4日マイナス
-      tm1  = jd2.truncate             # 整数部分
-      tm2  = jd2 - tm1                # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_before_4 = get_longitude_sun(t)
-
-      # 計算対象日の5日後の太陽の黄経(社日計算用)
-      jd2  = jd + 5                   # 5日プラス
-      tm1  = jd2.truncate             # 整数部分
-      tm2  = jd2 - tm1                # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_after_5 = get_longitude_sun(t)
-
-      # 計算対象日の6日後の太陽の黄経(社日計算用)
-      jd2  = jd + 6                   # 6日プラス
-      tm1  = jd2.truncate             # 整数部分
-      tm2  = jd2 - tm1                # 小数部分
-      tm2 -= 9 / 24.0                 # JST ==> DT ( 補正時刻=0.0sec と仮定して計算 )
-      t  = (tm2 + 0.5) / 36525.0      # 36525は1年365日と1/4を現す数値
-      t += (tm1 - 2451545) / 36525.0  # 2451545は基点までのユリウス日
-      lsun_after_6 = get_longitude_sun(t)
-
-      # 太陽の黄経の整数部分( 土用, 入梅, 半夏生 計算用 )
-      lsun_today0    = lsun_today.truncate
-      lsun_tomorrow0 = lsun_tomorrow.truncate
-
-      #### ここから各種雑節計算
-      # 0:節分 ( 立春の前日 )
-      sekki_24 = calc_sekki_24(jd + 1)
-      zassetsu_1 = 0 if sekki_24 == 315  # 立春の黄経(太陽)
-
-      # 1:彼岸入（春） ( 春分の日の3日前 )
-      sekki_24 = calc_sekki_24(jd + 3)
-      zassetsu_1 = 1 if sekki_24 == 0    # 春分の日の黄経(太陽)
-
-      # 2:彼岸（春） ( 春分の日 )
-      sekki_24 = calc_sekki_24(jd)
-      zassetsu_1 = 2 if sekki_24 == 0    # 春分の日の黄経(太陽)
-
-      # 3:彼岸明（春） ( 春分の日の3日後 )
-      sekki_24 = calc_sekki_24(jd - 3)
-      zassetsu_1 = 3 if sekki_24 == 0    # 春分の日の黄経(太陽)
-
-      # 4:社日（春） ( 春分の日に最も近い戊(つちのえ)の日 )
-      # * 計算対象日が戊の日の時、
-      #   * 4日後までもしくは4日前までに春分の日がある時、
-      #       この日が社日
-      #   * 5日後が春分の日の時、
-      #       * 春分点(黄経0度)が午前なら
-      #           この日が社日
-      #       * 春分点(黄経0度)が午後なら
-      #           この日の10日後が社日
-      if ( jd % 10 ).truncate == 4 # 戊の日
-        # [ 当日から4日後 ]
-        0.upto( 4 ) do |i|
-          sekki_24 = calc_sekki_24(jd + i)
-          if sekki_24 == 0  # 春分の日の黄経(太陽)
-            if zassetsu_1 == 99
-              zassetsu_1 = 4
-            else
-              zassetsu_2 = 4
-            end
-            break
-          end
-        end
-        # [ 1日前から4日前 ]
-        1.upto( 4 ) do |i|
-          sekki_24 = calc_sekki_24(jd -i)
-          if sekki_24 == 0  # 春分の日の黄経(太陽)
-            if zassetsu_1 == 99
-              zassetsu_1 = 4
-            else
-              zassetsu_2 = 4
-            end
-            break
-          end
-        end
-        # [ 5日後 ]
-        sekki_24 = calc_sekki_24(jd + 5)
-        if sekki_24 == 0  # 春分の日の黄経(太陽)
-          # 春分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
-          # 0度(360度)以上なら、春分点が午前と判断
-          if (lsun_after_5 + lsun_after_6 + 360) / 2.0 >= 360
-            if zassetsu_1 == 99
-              zassetsu_1 = 4
-            else
-              zassetsu_2 = 4
-            end
-          end
-        end
-        # [ 5日前 ]
-        sekki_24 = calc_sekki_24(jd - 5)
-        if sekki_24 == 0  # 春分の日の黄経(太陽)
-          # 春分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
-          # 0度(360度)未満なら、春分点が午後と判断
-          if (lsun_before_4 + lsun_before_5 + 360) / 2.0 < 360
-            if zassetsu_1 == 99
-              zassetsu_1 = 4
-            else
-              zassetsu_2 = 4
-            end
-          end
-        end
-      end
-
-      # 5:土用入（春） ( 黄経(太陽) = 27度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 5 if lsun_tomorrow0 == 27
-      end
-
-      # 6:八十八夜 ( 立春から88日目(87日後) )
-      sekki_24 = calc_sekki_24(jd - 87)
-      zassetsu_1 = 6 if sekki_24 == 315  # 立春の黄経(太陽)
-
-      # 7:入梅 ( 黄経(太陽) = 80度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 7 if lsun_tomorrow0 == 80
-      end
-
-      # 8:半夏生  ( 黄経(太陽) = 100度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 8 if lsun_tomorrow0 == 100
-      end
-
-      # 9:土用入（夏） ( 黄経(太陽) = 117度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 9 if lsun_tomorrow0 == 117
-      end
-
-      # 10:二百十日 ( 立春から210日目(209日後) )
-      sekki_24 = calc_sekki_24(jd - 209)
-      zassetsu_1 = 10 if sekki_24 == 315  # 立春の黄経(太陽)
-
-      # 11:二百二十日 ( 立春から220日目(219日後) )
-      sekki_24 = calc_sekki_24(jd - 219)
-      zassetsu_1 = 11 if sekki_24 == 315  # 立春の黄経(太陽)
-
-      # 12:彼岸入（秋） ( 秋分の日の3日前 )
-      sekki_24 = calc_sekki_24(jd + 3)
-      zassetsu_1 = 12 if sekki_24 == 180  # 秋分の日の黄経(太陽)
-
-      # 13:彼岸（秋）   ( 秋分の日 )
-      sekki_24 = calc_sekki_24(jd)
-      zassetsu_1 = 13 if sekki_24 == 180  # 秋分の日の黄経(太陽)
-
-      # 14:彼岸明（秋） ( 秋分の日の3日後 )
-      sekki_24 = calc_sekki_24(jd - 3)
-      zassetsu_1 = 14 if sekki_24 == 180  # 春分の日の黄経(太陽)
-
-      # 15:社日（秋） ( 秋分の日に最も近い戊(つちのえ)の日 )
-      # * 計算対象日が戊の日の時、
-      #   * 4日後までもしくは4日前までに秋分の日がある時、
-      #       この日が社日
-      #   * 5日後が秋分の日の時、
-      #       * 秋分点(黄経180度)が午前なら
-      #           この日が社日
-      #       * 秋分点(黄経180度)が午後なら
-      #           この日の10日後が社日
-      if (jd % 10).truncate == 4 # 戊の日
-        # [ 当日から4日後 ]
-        0.upto(4) do |i|
-          sekki_24 = calc_sekki_24(jd + i)
-          if sekki_24 == 180  # 秋分の日の黄経(太陽)
-            if zassetsu_1 == 99
-              zassetsu_1 = 15
-            else
-              zassetsu_2 = 15
-            end
-            break
-          end
-        end
-        # [ 1日前から4日前 ]
-        1.upto(4) do |i|
-          sekki_24 = calc_sekki_24(jd - i)
-          if sekki_24 == 180  # 秋分の日の黄経(太陽)
-            if zassetsu_1 == 99
-              zassetsu_1 = 15
-            else
-              zassetsu_2 = 15
-            end
-            break
-          end
-        end
-        # [ 5日後 ]
-        sekki_24 = calc_sekki_24(jd + 5)
-        if sekki_24 == 180  # 秋分の日の黄経(太陽)
-          # 秋分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
-          # 180度以上なら、秋分点が午前と判断
-          if (lsun_after_5 + lsun_after_6) / 2.0 >= 180
-            if zassetsu_1 == 99
-              zassetsu_1 = 15
-            else
-              zassetsu_2 = 15
-            end
-          end
-        end
-        # [ 5日前 ]
-        sekki_24 = calc_sekki_24(jd - 5)
-        if sekki_24 == 180  # 秋分の日の黄経(太陽)
-          # 秋分の日の黄経(太陽)と翌日の黄経(太陽)の中間点が
-          # 180度未満なら、秋分点が午後と判断
-          if (lsun_before_4 + lsun_before_5) / 2.0 < 180
-            if zassetsu_1 == 99
-              zassetsu_1 = 15
-            else
-              zassetsu_2 = 15
-            end
-          end
-        end
-      end
-
-      # 16:土用入（秋） ( 黄経(太陽) = 207度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 16 if lsun_tomorrow0 == 207
-      end
-
-      # 17:土用入（冬） ( 黄経(太陽) = 297度 )
-      unless lsun_today0 == lsun_tomorrow0
-        zassetsu_1 = 17 if lsun_tomorrow0 == 297
-      end
-
-      return {zassetsu_1: zassetsu_1, zassetsu_2: zassetsu_2}
-    rescue => e
-      raise
-    end
-  end
-
   # 結果出力
   def display
     begin
@@ -1507,22 +1580,19 @@ private
             str_out << " #{row[4]}" if row[0] == @hash[:holiday]
           end unless @hash[:holiday] == 99
         when "c" # ユリウス通日
-          str_out << " #{@hash[:jd] + 0.5}"
+          str_out << " #{@jd + 0.5}"
         when "d" # 干支
           str_out << " #{@kanshi[ @hash[:kanshi]]}"
         when "e" # 旧暦
-          str_out << sprintf(
-            " %02d-%02d-%02d",
-            @hash[:old_cal_y], @hash[:old_cal_m], @hash[:old_cal_d]
-          )
+          str_out << sprintf(" %02d-%02d-%02d", @hash[:oc_y], @hash[:oc_m], @hash[:oc_d])
         when "f" # 六曜
           str_out << " #{@rokuyo[@hash[:rokuyo]]}"
         when "g" # 二十四節気
           str_out << " #{@sekki24[@hash[:sekki24].to_i / 15]}" unless @hash[:sekki24] == 999
         when "h" # 雑節
           ary_zassetsu = []
-          @hash[:zassetsu].each do |zassetsu|
-            ary_zassetsu << @zassetsu[zassetsu] unless zassetsu == 99
+          @hash[:zassetsu].each do |k, v|
+            ary_zassetsu << @zassetsu[v] unless v == 99
           end
           str_out << " " + ary_zassetsu.join('・') unless ary_zassetsu.empty?
         when "i" # 節句
@@ -1530,9 +1600,9 @@ private
             str_out << " #{row[3]}" if row[0] == @hash[:sekku]
           end unless @hash[:sekku] == 9
         when "j" # 黄経(太陽)
-          str_out << " #{@hash[:kokei_sun]}"
+          str_out << " #{@hash[:lon_sun]}"
         when "k" # 黄経(月)
-          str_out << " #{@hash[:kokei_moon]}"
+          str_out << " #{@hash[:lon_moon]}"
         when "l" # 月齢
           str_out << " #{@hash[:moon_age]}"
         end

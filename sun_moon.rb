@@ -10,6 +10,7 @@
 # 2016.01.04    mk-mode         1.02 コーディング再整形
 # 2016.02.18    mk-mode         1.03 57 固定だった ΔT を計算により導出するよう変更
 #                                    Ref: [NASA - Polynomial Expressions for Delta T](http://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
+# 2016.03.07    mk-mode         1.04 うるう秒挿入が明確な場合の処理を追加
 #
 # Copyright(C) 2011-2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -239,8 +240,7 @@ private
   # データ初期化
   def init_data
     #@rotate_rev   = (57 + 0.8 * (@year - 1990)) / 86400  # 地球自転遅れ補正値(日)
-    dt = calc_dt
-    @rotate_rev   = (dt + 0.8 * (@year - 1990)) / 86400  # 地球自転遅れ補正値(日)
+    @rotate_rev   = calc_dt / 86400                      # 地球自転遅れ補正値(日)
     @dip          = 0.0353333 * Math.sqrt(@ht)           # 地平線伏角
     @day_progress = calc_time_progress                   # 2000年1月1日力学時正午からの経過日数(日)
     @sign_lat     = @lat >= 0 ? "N" : "S"                # 緯度記号
@@ -251,8 +251,13 @@ private
 
   #=========================================================================
   # ΔT の計算
+  #
+  #   1972-01-01 以降、うるう秒挿入済みの年+αまでは、以下で算出
+  #     TT - UTC = ΔT + DUT1 = TAI + 32.184 - UTC = ΔAT + 32.184
+  #   [うるう秒実施日一覧](http://jjy.nict.go.jp/QandA/data/leapsec.html)
   #=========================================================================
   def calc_dt
+    ymd = sprintf("%04d-%02d-%02d", @year, @month, @day)
     case
     when @year < -500
       t = (@year-1820) / 100.0
@@ -327,24 +332,90 @@ private
       dt -= t ** 2 / 233.0
       dt += t ** 3 / 2547.0
     when 1961 <= @year && @year < 1986
-      t = @year - 1975
-      dt  = 45.45
-      dt += 1.067 * t
-      dt -= t ** 2 / 260.0
-      dt -= t ** 3 / 718.0
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 1, 1)
+        t = @year - 1975
+        dt  = 45.45
+        dt += 1.067 * t
+        dt -= t ** 2 / 260.0
+        dt -= t ** 3 / 718.0
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 7, 1)
+        dt = 32.184 + 10
+      when ymd < sprintf("%04d-%02d-%02d", 1973, 1, 1)
+        dt = 32.184 + 11
+      when ymd < sprintf("%04d-%02d-%02d", 1974, 1, 1)
+        dt = 32.184 + 12
+      when ymd < sprintf("%04d-%02d-%02d", 1975, 1, 1)
+        dt = 32.184 + 13
+      when ymd < sprintf("%04d-%02d-%02d", 1976, 1, 1)
+        dt = 32.184 + 14
+      when ymd < sprintf("%04d-%02d-%02d", 1977, 1, 1)
+        dt = 32.184 + 15
+      when ymd < sprintf("%04d-%02d-%02d", 1978, 1, 1)
+        dt = 32.184 + 16
+      when ymd < sprintf("%04d-%02d-%02d", 1979, 1, 1)
+        dt = 32.184 + 17
+      when ymd < sprintf("%04d-%02d-%02d", 1980, 1, 1)
+        dt = 32.184 + 18
+      when ymd < sprintf("%04d-%02d-%02d", 1981, 7, 1)
+        dt = 32.184 + 19
+      when ymd < sprintf("%04d-%02d-%02d", 1982, 7, 1)
+        dt = 32.184 + 20
+      when ymd < sprintf("%04d-%02d-%02d", 1983, 7, 1)
+        dt = 32.184 + 21
+      when ymd < sprintf("%04d-%02d-%02d", 1985, 7, 1)
+        dt = 32.184 + 22
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      end
     when 1986 <= @year && @year < 2005
-      t = @year - 2000
-      dt  = 63.86
-      dt += 0.3345 * t
-      dt -= 0.060374 * t ** 2
-      dt += 0.0017275 * t ** 3
-      dt += 0.000651814 * t ** 4
-      dt += 0.00002373599 * t ** 5
+      # t = @year - 2000
+      # dt  = 63.86
+      # dt += 0.3345 * t
+      # dt -= 0.060374 * t ** 2
+      # dt += 0.0017275 * t ** 3
+      # dt += 0.000651814 * t ** 4
+      # dt += 0.00002373599 * t ** 5
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      when ymd < sprintf("%04d-%02d-%02d", 1990, 1, 1)
+        dt = 32.184 + 24
+      when ymd < sprintf("%04d-%02d-%02d", 1991, 1, 1)
+        dt = 32.184 + 25
+      when ymd < sprintf("%04d-%02d-%02d", 1992, 7, 1)
+        dt = 32.184 + 26
+      when ymd < sprintf("%04d-%02d-%02d", 1993, 7, 1)
+        dt = 32.184 + 27
+      when ymd < sprintf("%04d-%02d-%02d", 1994, 7, 1)
+        dt = 32.184 + 28
+      when ymd < sprintf("%04d-%02d-%02d", 1996, 1, 1)
+        dt = 32.184 + 29
+      when ymd < sprintf("%04d-%02d-%02d", 1997, 7, 1)
+        dt = 32.184 + 30
+      when ymd < sprintf("%04d-%02d-%02d", 1999, 1, 1)
+        dt = 32.184 + 31
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      end
     when 2005 <= @year && @year < 2050
-      t = @year - 2000
-      dt  = 62.92
-      dt += 0.32217 * t
-      dt += 0.005589 * t ** 2
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      when ymd < sprintf("%04d-%02d-%02d", 2009, 1, 1)
+        dt = 32.184 + 33
+      when ymd < sprintf("%04d-%02d-%02d", 2012, 7, 1)
+        dt = 32.184 + 34
+      when ymd < sprintf("%04d-%02d-%02d", 2015, 7, 1)
+        dt = 32.184 + 35
+      when ymd < sprintf("%04d-%02d-%02d", 2017, 7, 1)  # <= 第27回うるう秒実施までの暫定措置
+        dt = 32.184 + 36
+      else
+        t = @year - 2000
+        dt  = 62.92
+        dt += 0.32217 * t
+        dt += 0.005589 * t ** 2
+      end
     when 2050 <= @year && @year <= 2150
       dt  = -20
       dt += 32 * ((@year - 1820)/100.0) ** 2
@@ -1160,6 +1231,60 @@ private
       num_3 = num_2 - (num_m / 60.0)
       num_s = (num_3 * 60 * 60).round
       return sprintf("%02d:%02d:%02d", num_h, num_m, num_s)
+    rescue => e
+      raise
+    end
+  end
+
+  #=========================================================================
+  # ユリウス日(JD)から年月日、時分秒(世界時)を計算する
+  #
+  #   [ 引数 ]
+  #     jd : ユリウス通日
+  #
+  #   [ 戻り値 ] ( array )
+  #     ymdt[0] ... 年
+  #     ymdt[1] ... 月
+  #     ymdt[2] ... 日
+  #     ymdt[3] ... 時
+  #     ymdt[4] ... 分
+  #     ymdt[5] ... 秒
+  #
+  #   ※ この関数で求めた年月日は、グレゴリオ暦法によって表されている。
+  #=========================================================================
+  def jd_to_ymdt(jd)
+    ymdt = Array.new(6, 0)
+
+    begin
+      x0 = (jd + 68570).truncate
+      x1 = (x0 / 36524.25).truncate
+      x2 = x0 - (36524.25 * x1 + 0.75).truncate
+      x3 = ((x2 + 1) / 365.2425).truncate
+      x4 = x2 - (365.25 * x3).truncate + 31
+      x5 = (x4.truncate / 30.59).truncate
+      x6 = (x5.truncate / 11.0).truncate
+
+      ymdt[2] = x4 - (30.59 * x5).truncate
+      ymdt[1] = x5 - 12 * x6 + 2
+      ymdt[0] = 100 * (x1 - 49) + x3 + x6
+
+      # 2月30日の補正
+      if ymdt[1]==2 && ymdt[2] > 28
+        if ymdt[0] % 100 == 0 && ymdt[0] % 400 == 0
+         ymdt[2] = 29
+        elsif ymdt[0] % 4 == 0
+          ymdt[2] = 29
+        else
+          ymdt[2] = 28
+        end
+      end
+
+      tm = 86400 * (jd - jd.truncate)
+      ymdt[3] = (tm / 3600.0).truncate
+      ymdt[4] = ((tm - 3600 * ymdt[3]) / 60.0).truncate
+      ymdt[5] = (tm - 3600 * ymdt[3] - 60 * ymdt[4]).truncate
+
+      return ymdt
     rescue => e
       raise
     end

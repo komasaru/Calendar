@@ -6,8 +6,9 @@
 # date          name            version
 # 2013.02.19    mk-mode         1.00 新規作成
 # 2013.03.20    mk-mode         1.01 補正値計算処理を追加
-# 2016.02.18    mk-mode         1.02 57 固定だった ΔT を計算により導出するよう変更
+# 2016.03.03    mk-mode         1.02 地球自転遅れ補正値ΔTの計算機能を追加
 #                                    Ref: [NASA - Polynomial Expressions for Delta T](http://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
+# 2016.03.07    mk-mode         1.03 うるう秒挿入が明確な場合の処理を追加
 #
 # Copyright(C) 2013-2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -169,18 +170,20 @@ class CalcMoonage
   def calc_saku_new
     begin
       # LOOPカウンタのリセット
-      lc=1
+      lc = 1
 
       # 時刻引数を分解する
-      tm1 = @jd.truncate
-      tm2 = @jd - tm1
+      jd = @jd - 0.5
+      tm1 = jd.truncate
+      tm2 = jd - tm1
+      tm2 -= 9 / 24.0
 
       # 繰り返し計算によって朔の時刻を計算する
       # (誤差が±1.0 sec以内になったら打ち切る。)
       delta_t1 = 0 ; delta_t2 = 1
       while (delta_t1 + delta_t2).abs > (1.0 / 86400.0)
         # 太陽の黄経λsun ,月の黄経λmoon を計算
-        t = tm1 + tm2
+        t = tm1 + tm2 + 9 / 24.0
         rm_sun  = calc_longitude_sun_new(t)
         rm_moon = calc_longitude_moon_new(t)
 
@@ -218,12 +221,12 @@ class CalcMoonage
 
         # ループ回数が15回になったら、初期値 tm を tm-26 とする。
         if lc == 15 && (delta_t1 + delta_t2).abs > (1.0 / 86400.0)
-          tm1 = (@jd - 26).truncate
+          tm1 = (jd - 26).truncate
           tm2 = 0
         # 初期値を補正したにも関わらず、振動を続ける場合には初期値を答えとして
         # 返して強制的にループを抜け出して異常終了させる。
         elsif lc > 30 && (delta_t1+delta_t2).abs > (1.0 / 86400.0)
-          tm1 = @jd
+          tm1 = jd
           tm2 = 0
           break
         end
@@ -233,7 +236,7 @@ class CalcMoonage
       end
 
       # 時刻引数を合成
-      @saku_last_new = tm2 + tm1
+      @saku_last_new = tm2 + tm1 + 9 / 24.0
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".calc_saku_new] " + e.to_s
       STDERR.puts str_msg
@@ -340,7 +343,8 @@ class CalcMoonage
 
       # 地球自転遅れ補正値(日)計算
       #rotate_rev = (57 + 0.8 * (year - 1990)) / 86400.0
-      rotate_rev = (calc_dt + 0.8 * (year - 1990)) / 86400.0
+      #rotate_rev = (calc_dt + 0.8 * (year - 1990)) / 86400.0
+      rotate_rev = calc_dt / 86400.0
 
       # 2000年1月1日力学時正午からの経過日数(日)計算
       day_progress = calc_day_progress(year, month, day)
@@ -370,7 +374,6 @@ class CalcMoonage
       th += 0.0200 * Math.sin(K * normalize_angle(355.05 +  719.981 * jy))
       th += (1.9146 - 0.00005 * jy) * Math.sin(K * normalize_angle(357.538 + 359.991 * jy))
       th += normalize_angle(280.4603 + 360.00769 * jy)
-
       return normalize_angle(th)
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_sun_new] " + e.to_s
@@ -543,7 +546,8 @@ class CalcMoonage
 
       # 地球自転遅れ補正値(日)計算
       #rotate_rev = (57 + 0.8 * (year - 1990)) / 86400.0
-      rotate_rev = (calc_dt + 0.8 * (year - 1990)) / 86400.0
+      #rotate_rev = (calc_dt + 0.8 * (year - 1990)) / 86400.0
+      rotate_rev = calc_dt / 86400.0
 
       # 2000年1月1日力学時正午からの経過日数(日)計算
       day_progress = calc_day_progress(year, month, day)
@@ -621,8 +625,8 @@ class CalcMoonage
       rm_moon += 0.6583 * Math.sin(K * normalize_angle(235.700 +  8905.3422 * jy))
       rm_moon += 1.2740 * Math.sin(K * normalize_angle(100.738 +  4133.3536 * jy))
       rm_moon += 6.2887 * Math.sin(K * normalize_angle(134.961 +  4771.9886 * jy + am))
-
-      return rm_moon + normalize_angle(218.3161 + 4812.67881 * jy)
+      rm_moon += normalize_angle(218.3161 + 4812.67881 * jy)
+      return normalize_angle(rm_moon)
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_moon_new] " + e.to_s
       STDERR.puts str_msg
@@ -658,6 +662,7 @@ class CalcMoonage
   # ΔT の計算
   #=========================================================================
   def calc_dt
+    ymd = sprintf("%04d-%02d-%02d", @year, @month, @day)
     case
     when @year < -500
       t = (@year-1820) / 100.0
@@ -732,24 +737,90 @@ class CalcMoonage
       dt -= t ** 2 / 233.0
       dt += t ** 3 / 2547.0
     when 1961 <= @year && @year < 1986
-      t = @year - 1975
-      dt  = 45.45
-      dt += 1.067 * t
-      dt -= t ** 2 / 260.0
-      dt -= t ** 3 / 718.0
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 1, 1)
+        t = @year - 1975
+        dt  = 45.45
+        dt += 1.067 * t
+        dt -= t ** 2 / 260.0
+        dt -= t ** 3 / 718.0
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 7, 1)
+        dt = 32.184 + 10
+      when ymd < sprintf("%04d-%02d-%02d", 1973, 1, 1)
+        dt = 32.184 + 11
+      when ymd < sprintf("%04d-%02d-%02d", 1974, 1, 1)
+        dt = 32.184 + 12
+      when ymd < sprintf("%04d-%02d-%02d", 1975, 1, 1)
+        dt = 32.184 + 13
+      when ymd < sprintf("%04d-%02d-%02d", 1976, 1, 1)
+        dt = 32.184 + 14
+      when ymd < sprintf("%04d-%02d-%02d", 1977, 1, 1)
+        dt = 32.184 + 15
+      when ymd < sprintf("%04d-%02d-%02d", 1978, 1, 1)
+        dt = 32.184 + 16
+      when ymd < sprintf("%04d-%02d-%02d", 1979, 1, 1)
+        dt = 32.184 + 17
+      when ymd < sprintf("%04d-%02d-%02d", 1980, 1, 1)
+        dt = 32.184 + 18
+      when ymd < sprintf("%04d-%02d-%02d", 1981, 7, 1)
+        dt = 32.184 + 19
+      when ymd < sprintf("%04d-%02d-%02d", 1982, 7, 1)
+        dt = 32.184 + 20
+      when ymd < sprintf("%04d-%02d-%02d", 1983, 7, 1)
+        dt = 32.184 + 21
+      when ymd < sprintf("%04d-%02d-%02d", 1985, 7, 1)
+        dt = 32.184 + 22
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      end
     when 1986 <= @year && @year < 2005
-      t = @year - 2000
-      dt  = 63.86
-      dt += 0.3345 * t
-      dt -= 0.060374 * t ** 2
-      dt += 0.0017275 * t ** 3
-      dt += 0.000651814 * t ** 4
-      dt += 0.00002373599 * t ** 5
+      # t = @year - 2000
+      # dt  = 63.86
+      # dt += 0.3345 * t
+      # dt -= 0.060374 * t ** 2
+      # dt += 0.0017275 * t ** 3
+      # dt += 0.000651814 * t ** 4
+      # dt += 0.00002373599 * t ** 5
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      when ymd < sprintf("%04d-%02d-%02d", 1990, 1, 1)
+        dt = 32.184 + 24
+      when ymd < sprintf("%04d-%02d-%02d", 1991, 1, 1)
+        dt = 32.184 + 25
+      when ymd < sprintf("%04d-%02d-%02d", 1992, 7, 1)
+        dt = 32.184 + 26
+      when ymd < sprintf("%04d-%02d-%02d", 1993, 7, 1)
+        dt = 32.184 + 27
+      when ymd < sprintf("%04d-%02d-%02d", 1994, 7, 1)
+        dt = 32.184 + 28
+      when ymd < sprintf("%04d-%02d-%02d", 1996, 1, 1)
+        dt = 32.184 + 29
+      when ymd < sprintf("%04d-%02d-%02d", 1997, 7, 1)
+        dt = 32.184 + 30
+      when ymd < sprintf("%04d-%02d-%02d", 1999, 1, 1)
+        dt = 32.184 + 31
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      end
     when 2005 <= @year && @year < 2050
-      t = @year - 2000
-      dt  = 62.92
-      dt += 0.32217 * t
-      dt += 0.005589 * t ** 2
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      when ymd < sprintf("%04d-%02d-%02d", 2009, 1, 1)
+        dt = 32.184 + 33
+      when ymd < sprintf("%04d-%02d-%02d", 2012, 7, 1)
+        dt = 32.184 + 34
+      when ymd < sprintf("%04d-%02d-%02d", 2015, 7, 1)
+        dt = 32.184 + 35
+      when ymd < sprintf("%04d-%02d-%02d", 2017, 7, 1)  # <= 第27回うるう秒実施までの暫定措置
+        dt = 32.184 + 36
+      else
+        t = @year - 2000
+        dt  = 62.92
+        dt += 0.32217 * t
+        dt += 0.005589 * t ** 2
+      end
     when 2050 <= @year && @year <= 2150
       dt  = -20
       dt += 32 * ((@year - 1820)/100.0) ** 2
@@ -840,9 +911,9 @@ class CalcMoonage
 
       return ymdt
     rescue => e
-      str_msg = "[ERROR][" + self.class.name + ".jd_to_ymdt] " + e.to_s
-      puts str_msg
-      exit
+      str_msg = "[EXCEPTION][" + self.class.name + ".jd_to_ymdt] " + e.to_s
+      STDERR.puts str_msg
+      exit 1
     end
   end
 

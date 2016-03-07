@@ -6,8 +6,9 @@
 # date          name            version
 # 2013.02.19    mk-mode         1.00 新規作成
 # 2013.03.20    mk-mode         1.01 補正値計算処理を追加
-# 2016.02.18    mk-mode         1.02 57 固定だった ΔT を計算により導出するよう変更
+# 2016.02.18    mk-mode         1.02 地球自転遅れ補正値ΔTの計算機能を追加
 #                                    Ref: [NASA - Polynomial Expressions for Delta T](http://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
+# 2016.03.07    mk-mode         1.03 うるう秒挿入が明確な場合の処理を追加
 #
 # Copyright(C) 2013-2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -272,7 +273,7 @@ class CalcLongitudeMoon
 
       # 地球自転遅れ補正値(日)計算
       #rotate_rev = (57 + 0.8 * (@year - 1990)) / 86400.0
-      rotate_rev = (calc_dt + 0.8 * (@year - 1990)) / 86400.0
+      rotate_rev = calc_dt / 86400.0
 
       # 2000年1月1日力学時正午からの経過日数(日)計算
       day_progress = calc_day_progress
@@ -287,6 +288,7 @@ class CalcLongitudeMoon
       am += 0.0020 * Math.sin(K * normalize_angle( 55.0 + 19.34 * jy))
       am += 0.0040 * Math.sin(K * normalize_angle(119.5 +  1.33 * jy))
 
+      # 摂動項計算
       rm_moon  = 0.0003 * Math.sin(K * normalize_angle(280.0   + 23221.3    * jy))
       rm_moon += 0.0003 * Math.sin(K * normalize_angle(161.0   +    40.7    * jy))
       rm_moon += 0.0003 * Math.sin(K * normalize_angle(311.0   +  5492.0    * jy))
@@ -349,8 +351,9 @@ class CalcLongitudeMoon
       rm_moon += 0.2136 * Math.sin(K * normalize_angle(269.926 +  9543.9773 * jy))
       rm_moon += 0.6583 * Math.sin(K * normalize_angle(235.700 +  8905.3422 * jy))
       rm_moon += 1.2740 * Math.sin(K * normalize_angle(100.738 +  4133.3536 * jy))
-      rm_moon += 6.2887 * Math.sin(K * normalize_angle(134.961 +  4771.9886 * jy + am ) )
-      @th_new = rm_moon + normalize_angle(218.3161 + 4812.67881 * jy)
+      rm_moon += 6.2887 * Math.sin(K * normalize_angle(134.961 +  4771.9886 * jy + am))
+      rm_moon += normalize_angle(218.3161 + 4812.67881 * jy)
+      @th_new = normalize_angle(rm_moon)
     rescue => e
       str_msg = "[EXCEPTION][" + self.class.name + ".get_longitude_moon_new] " + e.to_s
       STDERR.puts str_msg
@@ -384,8 +387,13 @@ class CalcLongitudeMoon
 
   #=========================================================================
   # ΔT の計算
+  #
+  #   1972-01-01 以降、うるう秒挿入済みの年+αまでは、以下で算出
+  #     TT - UTC = ΔT + DUT1 = TAI + 32.184 - UTC = ΔAT + 32.184
+  #   [うるう秒実施日一覧](http://jjy.nict.go.jp/QandA/data/leapsec.html)
   #=========================================================================
   def calc_dt
+    ymd = sprintf("%04d-%02d-%02d", @year, @month, @day)
     case
     when @year < -500
       t = (@year-1820) / 100.0
@@ -460,24 +468,90 @@ class CalcLongitudeMoon
       dt -= t ** 2 / 233.0
       dt += t ** 3 / 2547.0
     when 1961 <= @year && @year < 1986
-      t = @year - 1975
-      dt  = 45.45
-      dt += 1.067 * t
-      dt -= t ** 2 / 260.0
-      dt -= t ** 3 / 718.0
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 1, 1)
+        t = @year - 1975
+        dt  = 45.45
+        dt += 1.067 * t
+        dt -= t ** 2 / 260.0
+        dt -= t ** 3 / 718.0
+      when ymd < sprintf("%04d-%02d-%02d", 1972, 7, 1)
+        dt = 32.184 + 10
+      when ymd < sprintf("%04d-%02d-%02d", 1973, 1, 1)
+        dt = 32.184 + 11
+      when ymd < sprintf("%04d-%02d-%02d", 1974, 1, 1)
+        dt = 32.184 + 12
+      when ymd < sprintf("%04d-%02d-%02d", 1975, 1, 1)
+        dt = 32.184 + 13
+      when ymd < sprintf("%04d-%02d-%02d", 1976, 1, 1)
+        dt = 32.184 + 14
+      when ymd < sprintf("%04d-%02d-%02d", 1977, 1, 1)
+        dt = 32.184 + 15
+      when ymd < sprintf("%04d-%02d-%02d", 1978, 1, 1)
+        dt = 32.184 + 16
+      when ymd < sprintf("%04d-%02d-%02d", 1979, 1, 1)
+        dt = 32.184 + 17
+      when ymd < sprintf("%04d-%02d-%02d", 1980, 1, 1)
+        dt = 32.184 + 18
+      when ymd < sprintf("%04d-%02d-%02d", 1981, 7, 1)
+        dt = 32.184 + 19
+      when ymd < sprintf("%04d-%02d-%02d", 1982, 7, 1)
+        dt = 32.184 + 20
+      when ymd < sprintf("%04d-%02d-%02d", 1983, 7, 1)
+        dt = 32.184 + 21
+      when ymd < sprintf("%04d-%02d-%02d", 1985, 7, 1)
+        dt = 32.184 + 22
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      end
     when 1986 <= @year && @year < 2005
-      t = @year - 2000
-      dt  = 63.86
-      dt += 0.3345 * t
-      dt -= 0.060374 * t ** 2
-      dt += 0.0017275 * t ** 3
-      dt += 0.000651814 * t ** 4
-      dt += 0.00002373599 * t ** 5
+      # t = @year - 2000
+      # dt  = 63.86
+      # dt += 0.3345 * t
+      # dt -= 0.060374 * t ** 2
+      # dt += 0.0017275 * t ** 3
+      # dt += 0.000651814 * t ** 4
+      # dt += 0.00002373599 * t ** 5
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 1988, 1, 1)
+        dt = 32.184 + 23
+      when ymd < sprintf("%04d-%02d-%02d", 1990, 1, 1)
+        dt = 32.184 + 24
+      when ymd < sprintf("%04d-%02d-%02d", 1991, 1, 1)
+        dt = 32.184 + 25
+      when ymd < sprintf("%04d-%02d-%02d", 1992, 7, 1)
+        dt = 32.184 + 26
+      when ymd < sprintf("%04d-%02d-%02d", 1993, 7, 1)
+        dt = 32.184 + 27
+      when ymd < sprintf("%04d-%02d-%02d", 1994, 7, 1)
+        dt = 32.184 + 28
+      when ymd < sprintf("%04d-%02d-%02d", 1996, 1, 1)
+        dt = 32.184 + 29
+      when ymd < sprintf("%04d-%02d-%02d", 1997, 7, 1)
+        dt = 32.184 + 30
+      when ymd < sprintf("%04d-%02d-%02d", 1999, 1, 1)
+        dt = 32.184 + 31
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      end
     when 2005 <= @year && @year < 2050
-      t = @year - 2000
-      dt  = 62.92
-      dt += 0.32217 * t
-      dt += 0.005589 * t ** 2
+      case
+      when ymd < sprintf("%04d-%02d-%02d", 2006, 1, 1)
+        dt = 32.184 + 32
+      when ymd < sprintf("%04d-%02d-%02d", 2009, 1, 1)
+        dt = 32.184 + 33
+      when ymd < sprintf("%04d-%02d-%02d", 2012, 7, 1)
+        dt = 32.184 + 34
+      when ymd < sprintf("%04d-%02d-%02d", 2015, 7, 1)
+        dt = 32.184 + 35
+      when ymd < sprintf("%04d-%02d-%02d", 2017, 7, 1)  # <= 第27回うるう秒実施までの暫定措置
+        dt = 32.184 + 36
+      else
+        t = @year - 2000
+        dt  = 62.92
+        dt += 0.32217 * t
+        dt += 0.005589 * t ** 2
+      end
     when 2050 <= @year && @year <= 2150
       dt  = -20
       dt += 32 * ((@year - 1820)/100.0) ** 2
