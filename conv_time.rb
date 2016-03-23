@@ -59,16 +59,23 @@ class ConvTime
 
   def exec
     begin
-      utc_to_jst
-      gc_to_jd
-      calc_ut1
-      calc_tai
-      calc_delta_t
-      calc_tt
-      calc_tcg
-      calc_tdb
-      calc_tcb
-      display
+      utc_to_jst    # UTC -> JST
+      @jd = gc_to_jd(
+        @year, @month, @day, @hour, @min, @sec
+      )             # ユリウス日
+      calc_ut1      # UT1
+      calc_tai      # TAI
+      calc_delta_t  # ΔT
+      calc_tt       # TT
+      calc_tcg      # TCG
+      calc_tcb      # TCB
+      t_tcb = Time.at(@tcb)
+      @jd_tcb = gc_to_jd(
+        t_tcb.year, t_tcb.month, t_tcb.day,
+        t_tcb.hour, t_tcb.min, t_tcb.sec
+      )             # ユリウス日(TCB)
+      calc_tdb      # TDB
+      display       # 結果出力
     rescue => e
       $stderr.puts "[#{e.class}] #{e.message}\n"
       e.backtrace.each { |tr| $stderr.puts "\t#{tr}" }
@@ -99,25 +106,25 @@ class ConvTime
   #   ※上記の int(x) は厳密には、x を超えない最大の整数
   #     (ちなみに、準JDを求めるなら `+ 1721088` が `- 678912` となる)
   #=========================================================================
-  def gc_to_jd
+  def gc_to_jd(year, month, day, hour, min, sec)
     # 1月,2月は前年の13月,14月とする
-    if @month < 3
-      @year  -= 1
-      @month += 12
+    if month < 3
+      year  -= 1
+      month += 12
     end
     # 日付(整数)部分計算
-    @jd  = (365.25 * @year).truncate
-    @jd += (@year / 400.0).truncate
-    @jd -= (@year / 100.0).truncate
-    @jd += (30.59 * (@month - 2)).truncate
-    @jd += @day
-    @jd += 1721088.5
+    jd  = (365.25 * year).truncate
+    jd += (year / 400.0).truncate
+    jd -= (year / 100.0).truncate
+    jd += (30.59 * (month - 2)).truncate
+    jd += day
+    jd += 1721088.5
     # 時間(小数)部分計算
-    t  = @sec / 3600.0
-    t += @min / 60.0
-    t += @hour
+    t  = sec / 3600.0
+    t += min / 60.0
+    t += hour
     t  = t / 24.0
-    @jd += t
+    return jd + t
   rescue => e
     raise
   end
@@ -208,10 +215,10 @@ class ConvTime
   #=========================================================================
   # TDB
   #
-  #   * TDB = TT + TDB_0（周期項は無視）
+  #   * TDB = TCB - L_B * (JD_TCB - T_0) * 86400 + TDB_0
   #=========================================================================
   def calc_tdb
-    @tdb = @tt + TDB_0
+    @tdb = @tcb - L_B * (@jd_tcb - T_0) * 86400 + TDB_0
   rescue => e
     raise
   end
@@ -219,12 +226,10 @@ class ConvTime
   #=========================================================================
   # TCB
   #
-  #   * TDB = TCB − L_B * (JD_TCB − T_0) * 86,400 + TDB_0  
-  #     （T_0 = 2,443,144.5003725, L_B = 1.550519768 * 10^(−8),
-  #       TDB_0 = −6.55 * 10^(−5), JD_TCB: ユリウス日）
+  #   * TCB = TT + L_B * (JD - T_0) * 86400
   #=========================================================================
   def calc_tcb
-    @tcb = @tdb + L_B * (@jd - T_0) * 86400 + TDB_0
+    @tcb = @tt + L_B * (@jd - T_0) * 86400
   rescue => e
     raise
   end
@@ -389,17 +394,18 @@ class ConvTime
     str =  "      UTC: #{Time.at(@utc).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
     str << "     (JST: #{Time.at(@jst).strftime("%Y-%m-%d %H:%M:%S.%3N")})\n"
     str << "JST - UTC: #{JST_UTC}\n"
-    str << "       JD: #{@jd}\n"
-    str << sprintf("     DUT1: %.1f\n", DUT1)
+    str << sprintf("       JD: %.10f day\n", @jd)
+    str << sprintf("     DUT1: %.1f sec\n", DUT1)
     str << "      UT1: #{Time.at(@ut1).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << "UTC - TAI: #{@utc_tai}\n"
+    str << "UTC - TAI: #{@utc_tai} sec\n"
     str << "      TAI: #{Time.at(@tai).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << sprintf(" TT - TAI: %.3f\n", TT_TAI)
+    str << sprintf(" TT - TAI: %.3f sec\n", TT_TAI)
     str << "       TT: #{Time.at(@tt).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << sprintf("      Δ T: %.3f\n", @delta_t)
+    str << sprintf("  delta T: %.3f sec\n", @delta_t)
     str << "      TCG: #{Time.at(@tcg).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << "      TDB: #{Time.at(@tdb).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << "      TCB: #{Time.at(@tcb).strftime("%Y-%m-%d %H:%M:%S.%3N")}"
+    str << "      TCB: #{Time.at(@tcb).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
+    str << sprintf("   JD_TCB: %.10f day\n", @jd_tcb)
+    str << "      TDB: #{Time.at(@tdb).strftime("%Y-%m-%d %H:%M:%S.%3N")}"
     puts str
   rescue => e
     raise
