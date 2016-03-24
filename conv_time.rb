@@ -7,7 +7,7 @@
 #
 # Copyright(C) 2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
-# 引数 : UTC（協定世界時）
+# 引数 : JST（日本標準時）
 #          書式：YYYYMMDD or YYYYMMDDHHMMSS
 #          無指定なら現在(システム日時)と判断。
 #---------------------------------------------------------------------------------
@@ -36,59 +36,71 @@ class ConvTime
   L_B     = 1.550519768 * 10**(-8)
   T_0     = 2443144.5003725
   TDB_0   = -6.55 * 10**(-5)
+  MSG_ERR = "[ERROR] Format: YYYYMMDD or YYYYMMDDHHMMSS"
 
-  def initialize(utc)
-    if utc
-      @year  = utc[ 0, 4].to_i
-      @month = utc[ 4, 2].to_i
-      @day   = utc[ 6, 2].to_i
-      @hour  = utc[ 8, 2].to_i
-      @min   = utc[10, 2].to_i
-      @sec   = utc[12, 2].to_i
-    else
-      utc = Time.now - JST_UTC * 60 * 60
-      @year  = utc.year
-      @month = utc.month
-      @day   = utc.day
-      @hour  = utc.hour
-      @min   = utc.min
-      @sec   = utc.sec
-    end
-    @utc = Time.new(@year, @month, @day, @hour, @min, @sec).to_f
+  def initialize
+    jst = Time.now
+    @year  = jst.year
+    @month = jst.month
+    @day   = jst.day
+    @hour  = jst.hour
+    @min   = jst.min
+    @sec   = jst.sec
+    @jst = Time.new(@year, @month, @day, @hour, @min, @sec).to_f
+    get_arg  # 引数取得
   end
 
   def exec
     begin
-      utc_to_jst    # UTC -> JST
+      jst_to_utc      # JST -> UTC
       @jd = gc_to_jd(
         @year, @month, @day, @hour, @min, @sec
-      )             # ユリウス日
-      calc_ut1      # UT1
-      calc_tai      # TAI
-      calc_delta_t  # ΔT
-      calc_tt       # TT
-      calc_tcg      # TCG
-      calc_tcb      # TCB
+      )               # ユリウス日
+      calc_ut1        # UT1
+      calc_tai        # TAI
+      calc_delta_t    # ΔT
+      calc_tt         # TT
+      calc_tcg        # TCG
+      calc_tcb        # TCB
       t_tcb = Time.at(@tcb)
       @jd_tcb = gc_to_jd(
         t_tcb.year, t_tcb.month, t_tcb.day,
         t_tcb.hour, t_tcb.min, t_tcb.sec
-      )             # ユリウス日(TCB)
-      calc_tdb      # TDB
-      display       # 結果出力
+      )               # ユリウス日(TCB)
+      calc_tdb        # TDB
+      display         # 結果出力
     rescue => e
       $stderr.puts "[#{e.class}] #{e.message}\n"
       e.backtrace.each { |tr| $stderr.puts "\t#{tr}" }
     end
   end
 
+  private
+
   #=========================================================================
-  # UTC -> JST
+  # 引数取得
   #
-  #   * JST = UTC + 9
+  #   * コマンドライン引数を取得して日時の妥当性チェックを行う
   #=========================================================================
-  def utc_to_jst
-    @jst = @utc + JST_UTC * 60 * 60
+  def get_arg
+    return unless arg = ARGV.shift
+    (puts MSG_ERR; exit 0) unless arg =~ /^\d{8}$|^\d{14}$/
+    @year, @month, @day = arg[ 0, 4].to_i, arg[ 4, 2].to_i, arg[ 6, 2].to_i
+    @hour, @min,   @sec = arg[ 8, 2].to_i, arg[10, 2].to_i, arg[12, 2].to_i
+    (puts MSG_ERR; exit 0) unless Date.valid_date?(@year, @month, @day)
+    (puts MSG_ERR; exit 0) if @hour > 23 || @min > 59 || @sec > 59
+    @jst = Time.new(@year, @month, @day, @hour, @min, @sec).to_f
+  rescue => e
+    raise
+  end
+
+  #=========================================================================
+  # JST -> UTC
+  #
+  #   * UTC = JST - 9
+  #=========================================================================
+  def jst_to_utc
+    @utc = @jst - JST_UTC * 60 * 60
   rescue => e
     raise
   end
@@ -391,8 +403,8 @@ class ConvTime
   end
 
   def display
-    str =  "      UTC: #{Time.at(@utc).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
-    str << "     (JST: #{Time.at(@jst).strftime("%Y-%m-%d %H:%M:%S.%3N")})\n"
+    str =  "      JST: #{Time.at(@jst).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
+    str << "      UTC: #{Time.at(@utc).strftime("%Y-%m-%d %H:%M:%S.%3N")}\n"
     str << "JST - UTC: #{JST_UTC}\n"
     str << sprintf("       JD: %.10f day\n", @jd)
     str << sprintf("     DUT1: %.1f sec\n", DUT1)
@@ -412,5 +424,5 @@ class ConvTime
   end
 end
 
-ConvTime.new(ARGV.shift).exec
+ConvTime.new.exec
 
