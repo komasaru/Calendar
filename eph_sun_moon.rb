@@ -2,6 +2,7 @@
 # coding: utf-8
 #---------------------------------------------------------------------------------
 #= 海上保安庁の天測暦より太陽・月の視位置を計算
+#  （視黄経・視黄緯を含まない）
 #
 # date          name            version
 # 2016.04.07    mk-mode.com     1.00 新規作成
@@ -11,7 +12,6 @@
 # 引数 : JST（日本標準時）
 #          書式：YYYYMMDD or YYYYMMDDHHMMSS
 #          無指定なら現在(システム日時)と判断。
-#---------------------------------------------------------------------------------
 #---------------------------------------------------------------------------------
 #++
 require 'date'
@@ -214,7 +214,7 @@ class EphSunMoon
   #     但し、0°<= θ <= 180°
   #
   #   @params: a, b, t
-  #   @return: theta
+  #   @return: theta (単位: °)
   #=========================================================================
   def calc_theta(a, b, t)
     b = t if b < t  # 年末のΔT秒分も計算可能とするための応急処置
@@ -254,7 +254,7 @@ class EphSunMoon
   #     (但し、E = R - R.A.)
   #
   #   @params: R.A.
-  #   @return: h
+  #   @return: h (単位: h)
   #=========================================================================
   def calc_h(ra)  # グリニジ時角の計算
     e = @vals["R"] - ra
@@ -269,7 +269,7 @@ class EphSunMoon
   #   * 次式により視半径を計算する。
   #       S.D.= 16.02 ′/ Dist.
   #
-  #   @return: sd
+  #   @return: sd (単位: ′)
   #=========================================================================
   def calc_sd_sun
     return 16.02 / @vals["SUN_DIST"]
@@ -283,10 +283,11 @@ class EphSunMoon
   #   * 次式により視半径を計算する。
   #       S.D.= sin^(-1) (0.2725 * sin(H.P.))
   #
-  #   @return: sd
+  #   @return: sd (単位: ′)
   #=========================================================================
   def calc_sd_moon
-    return Math.asin(0.2725 * Math.sin(@vals["MOON_HP"]))
+    sd = Math.asin(0.2725 * Math.sin(@vals["MOON_HP"] * Math::PI / 180.0))
+    return sd * 60.0 * 180.0 / Math::PI
   rescue => e
     raise
   end
@@ -298,28 +299,28 @@ class EphSunMoon
     str =  "[ JST: #{Time.at(@jst).strftime("%Y-%m-%d %H:%M:%S")},"
     str << "  UTC: #{Time.at(@utc).strftime("%Y-%m-%d %H:%M:%S")} ]\n"
     str << sprintf("  SUN  R.A. = %12.8f h",    @vals["SUN_RA"  ])
-    str << sprintf("   (= %s)\n",      hour2hms(@vals["SUN_RA"  ]))
+    str << sprintf("  (= %s)\n",       hour2hms(@vals["SUN_RA"  ]))
     str << sprintf("  SUN  DEC. = %12.8f °",    @vals["SUN_DEC" ])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["SUN_DEC" ]))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["SUN_DEC" ]))
     str << sprintf("  SUN DIST. = %12.8f AU\n", @vals["SUN_DIST"])
     str << sprintf("  SUN   hG. = %12.8f h",    @vals["SUN_H"   ])
-    str << sprintf("   (= %s)\n",      hour2hms(@vals["SUN_H"   ]))
+    str << sprintf("  (= %s)\n",       hour2hms(@vals["SUN_H"   ]))
     str << sprintf("  SUN  S.D. = %12.8f ′",    @vals["SUN_SD"  ])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["SUN_SD"] / 60.0))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["SUN_SD"] / 60.0))
     str << sprintf("  MOON R.A. = %12.8f h",    @vals["MOON_RA" ])
-    str << sprintf("   (= %s)\n",      hour2hms(@vals["MOON_RA" ]))
+    str << sprintf("  (= %s)\n",       hour2hms(@vals["MOON_RA" ]))
     str << sprintf("  MOON DEC. = %12.8f °",    @vals["MOON_DEC"])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["MOON_DEC"]))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["MOON_DEC"]))
     str << sprintf("  MOON H.P. = %12.8f °",    @vals["MOON_HP" ])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["MOON_HP" ]))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["MOON_HP" ]))
     str << sprintf("  MOON  hG. = %12.8f h",    @vals["MOON_H"  ])
-    str << sprintf("   (= %s)\n",      hour2hms(@vals["MOON_H"  ]))
+    str << sprintf("  (= %s)\n",       hour2hms(@vals["MOON_H"  ]))
     str << sprintf("  MOON S.D. = %12.8f ′",    @vals["MOON_SD" ])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["MOON_SD"] / 60.0))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["MOON_SD"] / 60.0))
     str << sprintf("         R  = %12.8f h",    @vals["R"       ])
-    str << sprintf("   (= %s)\n",      hour2hms(@vals["R"       ]))
+    str << sprintf("  (= %s)\n",       hour2hms(@vals["R"       ]))
     str << sprintf("       EPS. = %12.8f °",    @vals["EPS"     ])
-    str << sprintf("   (= %s)\n",       deg2dms(@vals["EPS"     ]))
+    str << sprintf("  (= %s)\n",        deg2dms(@vals["EPS"     ]))
     puts str
   rescue => e
     raise
@@ -337,7 +338,7 @@ class EphSunMoon
     m   = (h_r * 60).to_i
     m_r = h_r * 60 - m
     s   = m_r * 60
-    return sprintf("%02d h %02d m %06.3f s", h, m, s)
+    return sprintf(" %02d h %02d m %06.3f s", h, m, s)
   rescue => e
     raise
   end
@@ -349,12 +350,14 @@ class EphSunMoon
   #   @return: "99 ° 99 ′ 99.999 ″"
   #=========================================================================
   def deg2dms(deg)
+    pm  = deg < 0 ? "-" : " "
+    deg *= -1 if deg < 0
     d   = deg.to_i
     d_r = deg - d
     m   = (d_r * 60).to_i
     m_r = d_r * 60 - m
     s   = m_r * 60
-    return sprintf("%02d ° %02d ′ %06.3f ″", d, m, s)
+    return sprintf("%s%02d ° %02d ′ %06.3f ″", pm, d, m, s)
   rescue => e
     raise
   end
