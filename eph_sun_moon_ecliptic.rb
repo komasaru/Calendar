@@ -179,6 +179,7 @@ class EphSunMoonEcliptic
       @vals["SUN_BETA"   ] = calc_beta(@vals["SUN_RA"], @vals["SUN_DEC"])
       @vals["MOON_LAMBDA"] = calc_lambda(@vals["MOON_RA"], @vals["MOON_DEC"])
       @vals["MOON_BETA"  ] = calc_beta(@vals["MOON_RA"], @vals["MOON_DEC"])
+      @vals["LAMBDA_S_M" ] = calc_lambda_sun_moon  # 視黄経差（太陽 - 月）
     rescue => e
       raise
     end
@@ -341,6 +342,19 @@ class EphSunMoonEcliptic
   end
 
   #=========================================================================
+  # 視黄経差（太陽 - 月）の計算
+  #
+  #   * SUN_LAMBDA - MOON_LAMBDA
+  #
+  #   @return: 視黄経差（太陽 - 月）
+  #=========================================================================
+  def calc_lambda_sun_moon
+    return @vals["SUN_LAMBDA"] - @vals["MOON_LAMBDA"]
+  rescue => e
+    raise
+  end
+
+  #=========================================================================
   # 結果出力
   #=========================================================================
   def display
@@ -378,6 +392,7 @@ class EphSunMoonEcliptic
     str << sprintf("  (= %s)\n",          deg2dms(@vals["MOON_LAMBDA"]))
     str << sprintf("  MOON   BETA = %12.8f °",    @vals["MOON_BETA"  ])
     str << sprintf("  (= %s)\n",          deg2dms(@vals["MOON_BETA"  ]))
+    str << sprintf("  DIFF LAMBDA = %12.8f °\n",  @vals["LAMBDA_S_M" ])
     puts str
   rescue => e
     raise
