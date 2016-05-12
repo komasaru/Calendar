@@ -4,7 +4,7 @@
 #
 # date          name            version
 # 2016.03.22    mk-mode         1.00 新規作成
-# 2016.05.12    mk-mode         1.01 UPD: Fixed `jst_to_utc` method.
+# 2016.05.12    mk-mode         1.01 UPD: Fixed jst_to_utc method.
 #
 # Copyright(C) 2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
