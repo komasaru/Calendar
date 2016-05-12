@@ -4,6 +4,7 @@
 #
 # date          name            version
 # 2016.03.22    mk-mode         1.00 新規作成
+# 2016.05.12    mk-mode         1.01 UPD: Fixed `jst_to_utc` method.
 #
 # Copyright(C) 2016 mk-mode.com All Rights Reserved.
 #---------------------------------------------------------------------------------
@@ -101,6 +102,13 @@ class ConvTime
   #=========================================================================
   def jst_to_utc
     @utc = @jst - JST_UTC * 60 * 60
+    tm_utc = Time.at(@utc)
+    @year  = tm_utc.year
+    @month = tm_utc.month
+    @day   = tm_utc.day
+    @hour  = tm_utc.hour
+    @min   = tm_utc.min
+    @sec   = tm_utc.sec
   rescue => e
     raise
   end
