@@ -146,17 +146,11 @@ class NutationModel
     dp, de = 0.0, 0.0
 
     begin
-      # Mean anomaly of the Moon (IERS 2003)
       l  = calc_l_iers2003(t)
-      # Mean anomaly of the Sun (MHB2000)
       lp = calc_lp_mhb2000(t)
-      # Mean longitude of the Moon minus that of the ascending node (IERS 2003)
       f  = calc_f_iers2003(t)
-      # Mean elongation of the Moon from the Sun (MHB2000)
       d  = calc_d_mhb2000(t)
-      # Mean longitude of the ascending node of the Moon (IERS 2003)
       om = calc_om_iers2003(t)
-      # Summation of luni-solar nutation series (in reverse order)
       @dat_ls.reverse.each do |x|
         arg = (x[0] * l + x[1] * lp + x[2] * f +
                x[3] * d + x[4] * om) % PI2
@@ -175,33 +169,19 @@ class NutationModel
     dp, de = 0.0, 0.0
 
     begin
-      # Mean anomaly of the Moon (MHB2000)
       l   = calc_l_mhb2000(t)
-      # Mean longitude of the Moon minus that of the ascending node (MHB2000)
       f   = calc_f_mhb2000(t)
-      # Mean elongation of the Moon from the Sun (MHB2000)
       d   = calc_d_mhb2000_2(t)
-      # Mean longitude of the ascending node of the Moon (MHB2000)
       om  = calc_om_mhb2000(t)
-      # General accumulated precession in longitude (IERS 2003)
       pa  = calc_pa_iers2003(t)
-      # Mercury longitudes (IERS 2003)
       lme = calc_lme_iers2003(t)
-      # Venus longitudes (IERS 2003)
       lve = calc_lve_iers2003(t)
-      # Earth longitudes (IERS 2003)
       lea = calc_lea_iers2003(t)
-      # Mars longitudes (IERS 2003)
       lma = calc_lma_iers2003(t)
-      # Jupiter longitudes (IERS 2003)
       lju = calc_lju_iers2003(t)
-      # Saturn longitudes (IERS 2003)
       lsa = calc_lsa_iers2003(t)
-      # Uranus longitudes (IERS 2003)
       lur = calc_lur_iers2003(t)
-      # Neptune longitude (MHB2000)
       lne = calc_lne_mhb2000(t)
-      # Summation of planetary nutation series (in reverse order)
       @dat_pl.reverse.each do |x|
         arg = (x[ 0] * l   + x[ 2] * f   + x[ 3] * d   + x[ 4] * om  +
                x[ 5] * lme + x[ 6] * lve + x[ 7] * lea + x[ 8] * lma +
