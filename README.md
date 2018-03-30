@@ -74,6 +74,8 @@ EphSunMoon
 
 `./eph_sun_moon.rb [YYYYMMDD[HHMMSS]]`
 
+* Python 版は拡張子を `py` にする。
+
 ### 引数について
 
 8桁の数字（日付）か14桁の数字（日付＋時刻）を指定する。  
@@ -89,6 +91,8 @@ EphSunMoonEclipitc
 ### 使用方法
 
 `./eph_sun_moon.rb [YYYYMMDD[HHMMSS]]`
+
+* Python 版は拡張子を `py` にする。
 
 ### 引数について
 
