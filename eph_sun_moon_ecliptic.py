@@ -298,7 +298,7 @@ class EphSunMoon:
             lm /= math.cos(delta) * math.cos(alpha)
             lm  = math.atan(lm) * 180 / math.pi
             if lm < 0:
-                lm += 180
+                lm += 360
             return lm
         except Exception as e:
             raise
