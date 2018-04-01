@@ -307,18 +307,18 @@ class EphSunMoonEcliptic
   #     (α : 視赤経、δ : 視赤緯、 ε : 黄道傾斜角)
   #
   #   @params: alpha(ra, 視赤経), delta(dec, 視赤緯)
-  #   @return: lambda(視黄経)
+  #   @return: lm(視黄経)
   #=========================================================================
   def calc_lambda(alpha, delta)
     alpha = alpha * 15   * Math::PI / 180.0
     delta = delta        * Math::PI / 180.0
     eps   = @vals["EPS"] * Math::PI / 180.0
-    lambda  = Math.sin(delta) * Math.sin(eps)
-    lambda += Math.cos(delta) * Math.sin(alpha) * Math.cos(eps)
-    lambda /= Math.cos(delta) * Math.cos(alpha)
-    lambda  = Math.atan(lambda) * 180 / Math::PI
-    lambda += 360.0 if lambda < 0
-    return lambda
+    lm_a  = Math.sin(delta) * Math.sin(eps)
+    lm_a += Math.cos(delta) * Math.sin(alpha) * Math.cos(eps)
+    lm_b  = Math.cos(delta) * Math.cos(alpha)
+    lm    = Math.atan2(lm_a, lm_b) * 180 / Math::PI
+    lm   += 360.0 if lm < 0
+    return lm
   rescue => e
     raise
   end
@@ -331,15 +331,16 @@ class EphSunMoonEcliptic
   #     (α : 視赤経、δ : 視赤緯、 ε : 黄道傾斜角)
   #
   #   @params: alpha(ra, 視赤経), delta(dec, 視赤緯)
-  #   @return: beta(視黄緯)
+  #   @return: bt(視黄緯)
   #=========================================================================
   def calc_beta(alpha, delta)
     alpha = alpha * 15   * Math::PI / 180.0
     delta = delta        * Math::PI / 180.0
     eps   = @vals["EPS"] * Math::PI / 180.0
-    beta  = Math.sin(delta) * Math.cos(eps)
-    beta -= Math.cos(delta) * Math.sin(alpha) * Math.sin(eps)
-    return Math.asin(beta) * 180 / Math::PI
+    bt  = Math.sin(delta) * Math.cos(eps)
+    bt -= Math.cos(delta) * Math.sin(alpha) * Math.sin(eps)
+    bt  = Math.asin(bt) * 180 / Math::PI
+    return bt
   rescue => e
     raise
   end
