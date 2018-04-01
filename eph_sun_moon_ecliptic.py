@@ -293,10 +293,10 @@ class EphSunMoon:
             alpha = alpha * 15 * math.pi / 180
             delta = delta * math.pi / 180
             eps = self.vals["EPS"] * math.pi / 180
-            lm  = math.sin(delta) * math.sin(eps)
-            lm += math.cos(delta) * math.sin(alpha) * math.cos(eps)
-            lm /= math.cos(delta) * math.cos(alpha)
-            lm  = math.atan(lm) * 180 / math.pi
+            lm_a  = math.sin(delta) * math.sin(eps)
+            lm_a += math.cos(delta) * math.sin(alpha) * math.cos(eps)
+            lm_b  = math.cos(delta) * math.cos(alpha)
+            lm  = math.atan2(lm_a, lm_b) * 180 / math.pi
             if lm < 0:
                 lm += 360
             return lm
