@@ -73,10 +73,14 @@ class NutationModel:
             if len(sys.argv) < 2:
                 self.tt = datetime.now()
                 return
-            if re.search(r"(^\d{8}$|^\d{14}$)", sys.argv[1]) is None:
+            if re.search(r"^\d{8}$", sys.argv[1]) is not(None):
+                dt = sys.argv[1] + "000000"
+            elif re.search(r"^\d{14}$", sys.argv[1]) is not(None):
+                dt = sys.argv[1]
+            else:
                 sys.exit(0)
             try:
-                self.tt = datetime.strptime(sys.argv[1], "%Y%m%d%H%M%S")
+                self.tt = datetime.strptime(dt, "%Y%m%d%H%M%S")
             except ValueError as e:
                 print("Invalid date!")
                 sys.exit(0)
