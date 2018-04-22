@@ -159,11 +159,11 @@ class NutationModel:
         """
         dp, de = 0.0, 0.0
         try:
-            l  = self.__calc_l_iers2003(t)
-            lp = self.__calc_lp_mhb2000(t)
-            f  = self.__calc_f_iers2003(t)
-            d  = self.__calc_d_mhb2000(t)
-            om = self.__calc_om_iers2003(t)
+            l  = self.__l_iers2003(t)
+            lp = self.__lp_mhb2000(t)
+            f  = self.__f_iers2003(t)
+            d  = self.__d_mhb2000(t)
+            om = self.__om_iers2003(t)
             for x in reversed(self.dat_ls):
                 arg = (x[0] * l + x[1] * lp + x[2] * f \
                      + x[3] * d + x[4] * om) % self.PI2
@@ -182,23 +182,23 @@ class NutationModel:
         """
         dp, de = 0.0, 0.0
         try:
-            l   = self.__calc_l_mhb2000(t)
-            f   = self.__calc_f_mhb2000(t)
-            d   = self.__calc_d_mhb2000_2(t)
-            om  = self.__calc_om_mhb2000(t)
-            pa  = self.__calc_pa_iers2003(t)
-            lme = self.__calc_lme_iers2003(t)
-            lve = self.__calc_lve_iers2003(t)
-            lea = self.__calc_lea_iers2003(t)
-            lma = self.__calc_lma_iers2003(t)
-            lju = self.__calc_lju_iers2003(t)
-            lsa = self.__calc_lsa_iers2003(t)
-            lur = self.__calc_lur_iers2003(t)
-            lne = self.__calc_lne_mhb2000(t)
+            l  = self.__l_mhb2000(t)
+            f  = self.__f_mhb2000(t)
+            d  = self.__d_mhb2000_2(t)
+            om = self.__om_mhb2000(t)
+            pa = self.__pa_iers2003(t)
+            me = self.__lme_iers2003(t)
+            ve = self.__lve_iers2003(t)
+            ea = self.__lea_iers2003(t)
+            ma = self.__lma_iers2003(t)
+            ju = self.__lju_iers2003(t)
+            sa = self.__lsa_iers2003(t)
+            ur = self.__lur_iers2003(t)
+            ne = self.__lne_mhb2000(t)
             for x in reversed(self.dat_pl):
-                arg = (x[ 0] * l   + x[ 2] * f   + x[ 3] * d   + x[ 4] * om  \
-                     + x[ 5] * lme + x[ 6] * lve + x[ 7] * lea + x[ 8] * lma \
-                     + x[ 9] * lju + x[10] * lsa + x[11] * lur + x[12] * lne \
+                arg = (x[ 0] * l  + x[ 2] * f  + x[ 3] * d  + x[ 4] * om \
+                     + x[ 5] * me + x[ 6] * ve + x[ 7] * ea + x[ 8] * ma \
+                     + x[ 9] * ju + x[10] * sa + x[11] * ur + x[12] * ne \
                      + x[13] * pa) % self.PI2
                 sarg, carg = math.sin(arg), math.cos(arg)
                 dp += x[14] * sarg + x[15] * carg
@@ -207,7 +207,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_l_iers2003(self, t):
+    def __l_iers2003(self, t):
         """ Mean anomaly of the Moon (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -223,7 +223,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lp_mhb2000(self, t):
+    def __lp_mhb2000(self, t):
         """ Mean anomaly of the Sun (MHB2000)
 
         :param  float t: ユリウス世紀数
@@ -239,7 +239,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_f_iers2003(self, t):
+    def __f_iers2003(self, t):
         """ Mean longitude of the Moon minus that of the ascending node
             (IERS 2003)
 
@@ -257,7 +257,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_d_mhb2000(self, t):
+    def __d_mhb2000(self, t):
         """ Mean elongation of the Moon from the Sun (MHB2000)
 
         :param  float t: ユリウス世紀数
@@ -273,7 +273,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_om_iers2003(self, t):
+    def __om_iers2003(self, t):
         """ Mean longitude of the ascending node of the Moon
             (IERS 2003)
 
@@ -291,7 +291,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_l_mhb2000(self, t):
+    def __l_mhb2000(self, t):
         """ Mean anomaly of the Moon (MHB2000)
 
         :param  float t: ユリウス世紀数
@@ -302,7 +302,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_f_mhb2000(self, t):
+    def __f_mhb2000(self, t):
         """ Mean longitude of the Moon minus that of the ascending node
             (MHB2000)
 
@@ -315,7 +315,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_d_mhb2000_2(self, t):
+    def __d_mhb2000_2(self, t):
         """ Mean elongation of the Moon from the Sun (MHB2000)
 
         :param  float t: ユリウス世紀数
@@ -326,7 +326,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_om_mhb2000(self, t):
+    def __om_mhb2000(self, t):
         """ Mean longitude of the ascending node of the Moon (MHB2000)
 
         :param  float t: ユリウス世紀数
@@ -338,7 +338,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_pa_iers2003(self, t):
+    def __pa_iers2003(self, t):
         """ General accumulated precession in longitude (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -349,7 +349,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lme_iers2003(self, t):
+    def __lme_iers2003(self, t):
         """ Mercury longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -360,7 +360,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lve_iers2003(self, t):
+    def __lve_iers2003(self, t):
         """ Venus longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -371,7 +371,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lea_iers2003(self, t):
+    def __lea_iers2003(self, t):
         """ Earth longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -382,7 +382,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lma_iers2003(self, t):
+    def __lma_iers2003(self, t):
         """ Mars longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -393,7 +393,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lju_iers2003(self, t):
+    def __lju_iers2003(self, t):
         """ Jupiter longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -404,7 +404,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lsa_iers2003(self, t):
+    def __lsa_iers2003(self, t):
         """ Saturn longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -415,7 +415,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lur_iers2003(self, t):
+    def __lur_iers2003(self, t):
         """ Uranus longitudes (IERS 2003)
 
         :param  float t: ユリウス世紀数
@@ -426,7 +426,7 @@ class NutationModel:
         except Exception as e:
             raise
 
-    def __calc_lne_mhb2000(self, t):
+    def __lne_mhb2000(self, t):
         """ Neptune longitude (MHB2000)
 
         :param  float t: ユリウス世紀数
