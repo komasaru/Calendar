@@ -22,7 +22,7 @@
 Copyright(C) 2018 mk-mode.com All Rights Reserved.
 ---
 引数 : 日時(TT（地球時）)
-         書式：YYYYMMDD or YYYYMMDDHHMMSS
+         書式：YYYYMMDD or YYYYMMDDHHMMSS or YYYYMMDDHHMMSSUUUUUU
          無指定なら現在(システム日時)を地球時とみなす。
 """
 from datetime import datetime
@@ -73,14 +73,12 @@ class NutationModel:
             if len(sys.argv) < 2:
                 self.tt = datetime.now()
                 return
-            if re.search(r"^\d{8}$", sys.argv[1]) is not(None):
-                dt = sys.argv[1] + "000000"
-            elif re.search(r"^\d{14}$", sys.argv[1]) is not(None):
-                dt = sys.argv[1]
+            if re.search(r"^(\d{8}|\d{14}|\d{20})$", sys.argv[1]):
+                dt = sys.argv[1].ljust(20, "0")
             else:
                 sys.exit(0)
             try:
-                self.tt = datetime.strptime(dt, "%Y%m%d%H%M%S")
+                self.tt = datetime.strptime(dt, "%Y%m%d%H%M%S%f")
             except ValueError as e:
                 print("Invalid date!")
                 sys.exit(0)
@@ -449,7 +447,7 @@ class NutationModel:
                 "           = {} °\n"
                 "           = {} ″"
             ).format(
-                self.tt.strftime("%Y-%m-%d %H:%M:%S"),
+                self.tt.strftime("%Y-%m-%d %H:%M:%S.%f"),
                 self.dpsi, self.dpsi_d, self.dpsi_s,
                 self.deps, self.deps_d, self.deps_s
             ))
