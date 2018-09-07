@@ -20,7 +20,7 @@ require './consts.rb'
 class EphSunMoonEcliptic
   JST_UTC = 9  # JST - UTC
   MSG_ERR_1 = "[ERROR] Format: YYYYMMDD or YYYYMMDDHHMMSS"
-  MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20190101085959."
+  MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20200101085959."
   DIVS = [
     "SUN_RA", "SUN_DEC","SUN_DIST",
     "MOON_RA", "MOON_DEC", "MOON_HP",
@@ -29,7 +29,7 @@ class EphSunMoonEcliptic
   DELTA_T = {
     2008 => 65, 2009 => 66, 2010 => 66, 2011 => 67, 2012 => 67,
     2013 => 67, 2014 => 67, 2015 => 68, 2016 => 68, 2017 => 68,
-    2018 => 69
+    2018 => 69, 2019 => 70
   }
 
   def initialize
@@ -70,7 +70,7 @@ class EphSunMoonEcliptic
       (puts MSG_ERR_1; exit 0) unless Date.valid_date?(year, month, day)
       (puts MSG_ERR_1; exit 0) if hour > 23 || min > 59 || sec > 59
       if sprintf("%04d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec) < "20080101090000" ||
-         sprintf("%04d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec) > "20190101085959"
+         sprintf("%04d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec) > "20200101085959"
         puts MSG_ERR_2
         exit 0
       end

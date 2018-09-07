@@ -25,7 +25,7 @@ import consts as cst
 class EphSunMoon:
     JST_UTC = 9  # JST - UTC
     MSG_ERR_1 = "[ERROR] Format: YYYYMMDD or YYYYMMDDHHMMSS"
-    MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20190101085959."
+    MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20200101085959."
     MSG_ERR_3 = "[ERROR] Invalid date!"
     DIVS = {
         "SUN_RA":   cst.SUN_RA,
@@ -39,7 +39,7 @@ class EphSunMoon:
     }
     DELTA_T = {
         2008: 65, 2009: 66, 2010: 66, 2011: 67, 2012: 67, 2013: 67,
-        2014: 67, 2015: 68, 2016: 68, 2017: 68, 2018: 69
+        2014: 67, 2015: 68, 2016: 68, 2017: 68, 2018: 69, 2019:70
     }
 
     def __init__(self):
@@ -340,18 +340,18 @@ class EphSunMoon:
         try:
             s  = (
                 "[ JST: {},  UTC: {} ]\n"
-                "  SUN  R.A. = {:12.8f} h  (= {:s})\n"
-                "  SUN  DEC. = {:12.8f} °  (= {:s})\n"
-                "  SUN DIST. = {:12.8f} AU\n"
-                "  SUN   hG. = {:12.8f} h  (= {:s})\n"
-                "  SUN  S.D. = {:12.8f} ′  (= {:s})\n"
-                "  MOON R.A. = {:12.8f} h  (= {:s})\n"
-                "  MOON DEC. = {:12.8f} °  (= {:s})\n"
-                "  MOON H.P. = {:12.8f} °  (= {:s})\n"
-                "  MOON  hG. = {:12.8f} h  (= {:s})\n"
-                "  MOON S.D. = {:12.8f} ′  (= {:s})\n"
-                "         R  = {:12.8f} h  (= {:s})\n"
-                "       EPS. = {:12.8f} °  (= {:s})\n"
+                "  SUN    R.A. = {:12.8f} h  (={:s})\n"
+                "  SUN    DEC. = {:12.8f} °  (={:s})\n"
+                "  SUN   DIST. = {:12.8f} AU\n"
+                "  SUN     hG. = {:12.8f} h  (={:s})\n"
+                "  SUN    S.D. = {:12.8f} ′  (={:s})\n"
+                "  MOON   R.A. = {:12.8f} h  (={:s})\n"
+                "  MOON   DEC. = {:12.8f} °  (={:s})\n"
+                "  MOON   H.P. = {:12.8f} °  (={:s})\n"
+                "  MOON    hG. = {:12.8f} h  (={:s})\n"
+                "  MOON   S.D. = {:12.8f} ′  (={:s})\n"
+                "           R  = {:12.8f} h  (={:s})\n"
+                "         EPS. = {:12.8f} °  (={:s})\n"
                 "  ---\n"
                 "  SUN  LAMBDA ={:13.8f} °  (={:s})\n"
                 "  SUN    BETA ={:13.8f} °  (={:s})\n"
@@ -405,12 +405,15 @@ class EphSunMoon:
         :return string: 99 h 99 m 99.999 s
         """
         try:
+            pm  = "-" if hour < 0 else " "
+            if hour < 0:
+                hour *= -1
             h   = int(hour)
             h_r = hour - h
             m   = int(h_r * 60)
             m_r = h_r * 60 - m
             s   = m_r * 60
-            return " {:02d} h {:02d} m {:06.3f} s".format(h, m, s)
+            return " {:>3s} h {:02d} m {:06.3f} s".format(pm + str(h), m, s)
         except Exception as e:
             raise
 
@@ -429,7 +432,7 @@ class EphSunMoon:
             m   = int(d_r * 60)
             m_r = d_r * 60 - m
             s   = m_r * 60
-            return "{:3s} ° {:02d} ′ {:06.3f} ″".format(pm + str(d), m, s)
+            return "{:>4s} ° {:02d} ′ {:06.3f} ″".format(pm + str(d), m, s)
         except Exception as e:
             raise
 

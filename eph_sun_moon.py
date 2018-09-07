@@ -1,6 +1,5 @@
 #! /usr/local/bin/python3.6
 """
-----------------------------------------------------
 海上保安庁の天測暦より太陽・月の視位置を計算
 （視黄経・視黄緯を含まない）
 
@@ -8,11 +7,10 @@
   2018.03.28    mk-mode.com     1.00 新規作成
 
   Copyright(C) 2018 mk-mode.com All Rights Reserved.
-----------------------------------------------------
- 引数 : JST（日本標準時）
-          書式：YYYYMMDD or YYYYMMDDHHMMSS
-          無指定なら現在(システム日時)と判断。
-----------------------------------------------------
+---
+引数 : JST（日本標準時）
+         書式：YYYYMMDD or YYYYMMDDHHMMSS
+         無指定なら現在(システム日時)と判断。
 """
 import datetime
 import math
@@ -25,7 +23,7 @@ import consts as cst
 class EphSunMoon:
     JST_UTC = 9  # JST - UTC
     MSG_ERR_1 = "[ERROR] Format: YYYYMMDD or YYYYMMDDHHMMSS"
-    MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20190101085959."
+    MSG_ERR_2 = "[ERROR] It should be between 20080101090000 and 20200101085959."
     MSG_ERR_3 = "[ERROR] Invalid date!"
     DIVS = {
         "SUN_RA":   cst.SUN_RA,
@@ -39,7 +37,7 @@ class EphSunMoon:
     }
     DELTA_T = {
         2008: 65, 2009: 66, 2010: 66, 2011: 67, 2012: 67, 2013: 67,
-        2014: 67, 2015: 68, 2016: 68, 2017: 68, 2018: 69
+        2014: 67, 2015: 68, 2016: 68, 2017: 68, 2018: 69, 2019: 70
     }
 
     def __init__(self):
@@ -267,32 +265,47 @@ class EphSunMoon:
     def __display(self):
         """ 結果出力 """
         try:
-            s  = "[ JST: {},".format(self.jst.strftime("%Y-%m-%d %H:%M:%S"))
-            s += "  UTC: {} ]\n".format(self.utc.strftime("%Y-%m-%d %H:%M:%S"))
-            s += "  SUN  R.A. = {:12.8f} h".format(self.vals["SUN_RA"])
-            s += "  (= {:s})\n".format(self.__hour2hms(self.vals["SUN_RA"]))
-            s += "  SUN  DEC. = {:12.8f} °".format(self.vals["SUN_DEC"])
-            s += "  (= {:s})\n".format(self.__deg2dms(self.vals["SUN_DEC"]))
-            s += "  SUN DIST. = {:12.8f} AU\n".format(self.vals["SUN_DIST"])
-            s += "  SUN   hG. = {:12.8f} h".format(self.vals["SUN_H"])
-            s += "  (= {:s})\n".format(self.__hour2hms(self.vals["SUN_H"]))
-            s += "  SUN  S.D. = {:12.8f} ′".format(self.vals["SUN_SD"])
-            s += "  (= {:s})\n".format(self.__deg2dms(self.vals["SUN_SD"] / 60))
-            s += "  MOON R.A. = {:12.8f} h".format(self.vals["MOON_RA"])
-            s += "  (= {:s})\n".format(self.__hour2hms(self.vals["MOON_RA"]))
-            s += "  MOON DEC. = {:12.8f} °".format(self.vals["MOON_DEC"])
-            s += "  (= {:s})\n".format(self.__deg2dms(self.vals["MOON_DEC"]))
-            s += "  MOON H.P. = {:12.8f} °".format(self.vals["MOON_HP"])
-            s += "  (= {:s})\n".format(self.__deg2dms(self.vals["MOON_HP"]))
-            s += "  MOON  hG. = {:12.8f} h".format(self.vals["MOON_H"])
-            s += "  (= {:s})\n".format(self.__hour2hms(self.vals["MOON_H"]))
-            s += "  MOON S.D. = {:12.8f} ′".format(self.vals["MOON_SD"])
-            s += "  (= {:s})\n".format(self.__deg2dms(self.vals["MOON_SD"] / 60))
-            s += "         R  = {:12.8f} h".format(self.vals["R"])
-            s += "  (= {:s})\n".format(self.__hour2hms(self.vals["R"]))
-            s += "       EPS. = {:12.8f} °".format(self.vals["EPS"])
-            s += "  (= {:s})".format(self.__deg2dms(self.vals["EPS"]))
-            print(s)
+            print((
+                "[ JST: {},  UTC: {} ]\n"
+                "  SUN  R.A. = {:12.8f} h  (= {:s})\n"
+                "  SUN  DEC. = {:12.8f} °  (= {:s})\n"
+                "  SUN DIST. = {:12.8f} AU\n"
+                "  SUN   hG. = {:12.8f} h  (= {:s})\n"
+                "  SUN  S.D. = {:12.8f} ′  (= {:s})\n"
+                "  MOON R.A. = {:12.8f} h  (= {:s})\n"
+                "  MOON DEC. = {:12.8f} °  (= {:s})\n"
+                "  MOON H.P. = {:12.8f} °  (= {:s})\n"
+                "  MOON  hG. = {:12.8f} h  (= {:s})\n"
+                "  MOON S.D. = {:12.8f} ′  (= {:s})\n"
+                "         R  = {:12.8f} h  (= {:s})\n"
+                "       EPS. = {:12.8f} °  (= {:s})"
+            ).format(
+                self.jst.strftime("%Y-%m-%d %H:%M:%S"),
+                self.utc.strftime("%Y-%m-%d %H:%M:%S"),
+                self.vals["SUN_RA"],
+                self.__hour2hms(self.vals["SUN_RA"]),
+                self.vals["SUN_DEC"],
+                self.__deg2dms(self.vals["SUN_DEC"]),
+                self.vals["SUN_DIST"],
+                self.vals["SUN_H"],
+                self.__hour2hms(self.vals["SUN_H"]),
+                self.vals["SUN_SD"],
+                self.__deg2dms(self.vals["SUN_SD"] / 60),
+                self.vals["MOON_RA"],
+                self.__hour2hms(self.vals["MOON_RA"]),
+                self.vals["MOON_DEC"],
+                self.__deg2dms(self.vals["MOON_DEC"]),
+                self.vals["MOON_HP"],
+                self.__deg2dms(self.vals["MOON_HP"]),
+                self.vals["MOON_H"],
+                self.__hour2hms(self.vals["MOON_H"]),
+                self.vals["MOON_SD"],
+                self.__deg2dms(self.vals["MOON_SD"] / 60),
+                self.vals["R"],
+                self.__hour2hms(self.vals["R"]),
+                self.vals["EPS"],
+                self.__deg2dms(self.vals["EPS"])
+            ))
         except Exception as e:
             raise
 
@@ -303,12 +316,15 @@ class EphSunMoon:
         :return string: 99 h 99 m 99.999 s
         """
         try:
+            pm  = "-" if hour < 0 else " "
+            if hour < 0:
+                hour *= -1
             h   = int(hour)
             h_r = hour - h
             m   = int(h_r * 60)
             m_r = h_r * 60 - m
             s   = m_r * 60
-            return " {:02d} h {:02d} m {:06.3f} s".format(h, m, s)
+            return " {:>3s} h {:02d} m {:06.3f} s".format(pm + str(h), m, s)
         except Exception as e:
             raise
 
@@ -327,7 +343,7 @@ class EphSunMoon:
             m   = int(d_r * 60)
             m_r = d_r * 60 - m
             s   = m_r * 60
-            return "{:3s} ° {:02d} ′ {:06.3f} ″".format(pm + str(d), m, s)
+            return "{:>4s} ° {:02d} ′ {:06.3f} ″".format(pm + str(d), m, s)
         except Exception as e:
             raise
 
