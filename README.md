@@ -74,8 +74,6 @@ EphSunMoon
 
 `./eph_sun_moon.rb [YYYYMMDD[HHMMSS]]`
 
-* Python 版は拡張子を `py` にする。
-
 ### 引数について
 
 8桁の数字（日付）か14桁の数字（日付＋時刻）を指定する。  
@@ -92,8 +90,6 @@ EphSunMoonEclipitc
 
 `./eph_sun_moon.rb [YYYYMMDD[HHMMSS]]`
 
-* Python 版は拡張子を `py` にする。
-
 ### 引数について
 
 8桁の数字（日付）か14桁の数字（日付＋時刻）を指定する。  
@@ -109,8 +105,6 @@ IAU2000A 章動理論(MHB2000, IERS2003)により、黄経における章動(Δ�
 ### 使用方法
 
 `./nutation_model.rb [YYYYMMDD[HHMMSS]]`
-
-* Python 版は拡張子を `py` にする。
 
 ### 引数について
 
