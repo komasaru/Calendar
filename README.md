@@ -26,13 +26,13 @@ Calendar
 
 スクリプト内のコメント参照。
 
-### **注意**
+### 注意
 
 * 「振替休日」と「国民の休日」が重複するに不具合が発生する。（1987年等）
 * 祝日は定数で固定している。
 * 天体計算が正確でないため、多少の誤差が発生する。
 * このスクリプトの更新は停止。（2018年11月4日）  
-  [Python 版](https://github.com/komasaru/CalendarPy "komasaru/CalendarPy: Python scripts to calculate calendar.") や [Fortran 95 版](https://github.com/komasaru/CalendarF "komasaru/CalendarF: Fortran source codes to calculate calendar.") を参照のこと。
+  [Python 版](https://github.com/komasaru/CalendarPy "komasaru/CalendarPy: Python scripts to calculate calendar.") や [Fortran 95 版](https://github.com/komasaru/CalendarF95 "komasaru/CalendarF95: Fortran 95 source codes to calculate calendar.") を参照のこと。
 
 ---
 
